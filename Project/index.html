@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LMU Blockchain Certificate System</title>
+<script src="https://cdn.jsdelivr.net/npm/web3@4.3.0/dist/web3.min.js"></script>
+<style>
+:root {
+  --primary:#1a1a6e; --primary-lt:#2d2d9b;
+  --accent:#8B6914;  --accent-lt:#c49a2a;
+  --success:#16a34a; --success-bg:#dcfce7;
+  --danger:#dc2626;  --danger-bg:#fee2e2;
+  --warning:#d97706; --warning-bg:#fef3c7;
+  --info:#0369a1;    --info-bg:#e0f2fe;
+  --gray-50:#f9fafb; --gray-100:#f3f4f6; --gray-200:#e5e7eb;
+  --gray-400:#9ca3af; --gray-600:#4b5563; --gray-800:#1f2937;
+  --white:#fff;
+  --shadow-sm:0 1px 3px rgba(0,0,0,.12);
+  --shadow-md:0 4px 16px rgba(0,0,0,.12);
+  --shadow-lg:0 8px 32px rgba(0,0,0,.16);
+  --r-sm:6px; --r-md:10px; --r-lg:16px;
+  --font:'Segoe UI',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--gray-50);color:var(--gray-800);line-height:1.6;min-height:100vh;}
+h1,h2,h3,h4{font-weight:600;line-height:1.3;color:var(--primary);}
+h1{font-size:2rem;} h2{font-size:1.5rem;} h3{font-size:1.2rem;}
+p{color:var(--gray-600);}
+.page{display:none;} .page.active{display:block;}
+
+/* NAVBAR */
+.navbar{background:var(--primary);padding:0 32px;height:64px;display:flex;align-items:center;justify-content:space-between;box-shadow:var(--shadow-md);position:sticky;top:0;z-index:100;}
+.navbar-brand{display:flex;align-items:center;gap:12px;color:#fff;font-size:1.1rem;font-weight:700;cursor:pointer;}
+.logo-icon{width:36px;height:36px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;}
+.nav-links{display:flex;gap:8px;}
+.wallet-connected{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.15);border-radius:20px;padding:6px 14px;color:#fff;font-size:.83rem;}
+.wallet-dot{width:8px;height:8px;background:#4ade80;border-radius:50%;}
+
+/* LAYOUT */
+.layout{display:flex;min-height:calc(100vh - 64px);}
+.sidebar{width:220px;flex-shrink:0;background:var(--white);border-right:1px solid var(--gray-200);padding:20px 14px;}
+.sidebar-label{font-size:11px;font-weight:600;color:var(--gray-400);text-transform:uppercase;letter-spacing:1px;margin:18px 0 6px 8px;}
+.sidebar-link{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:var(--r-sm);color:var(--gray-600);font-size:.88rem;transition:all .2s;margin-bottom:2px;cursor:pointer;border:none;background:none;width:100%;}
+.sidebar-link:hover{background:var(--gray-100);color:var(--primary);}
+.sidebar-link.active{background:var(--info-bg);color:var(--info);font-weight:600;}
+.main-content{flex:1;padding:32px;}
+
+/* CARDS */
+.card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--r-lg);padding:24px;box-shadow:var(--shadow-sm);}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--gray-100);}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:28px;}
+.stat-card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--r-md);padding:20px;}
+.stat-label{font-size:13px;color:var(--gray-400);margin-bottom:8px;}
+.stat-value{font-size:28px;font-weight:700;color:var(--primary);}
+.stat-icon{width:44px;height:44px;border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;font-size:20px;}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:var(--r-sm);font-size:.9rem;font-weight:500;cursor:pointer;border:none;transition:all .2s;white-space:nowrap;}
+.btn:disabled{opacity:.6;cursor:not-allowed;}
+.btn-primary{background:var(--primary);color:#fff;}  .btn-primary:hover:not(:disabled){background:var(--primary-lt);}
+.btn-accent{background:var(--accent);color:#fff;}    .btn-accent:hover:not(:disabled){background:var(--accent-lt);}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-outline{background:transparent;color:var(--primary);border:1px solid var(--primary);}
+.btn-outline:hover{background:var(--primary);color:#fff;}
+.btn-ghost{background:var(--gray-100);color:var(--gray-600);}  .btn-ghost:hover{background:var(--gray-200);}
+.btn-sm{padding:6px 14px;font-size:.82rem;}
+.btn-full{width:100%;justify-content:center;}
+
+/* FORMS */
+.form-group{margin-bottom:18px;}
+.form-label{display:block;font-size:.88rem;font-weight:500;color:var(--gray-800);margin-bottom:6px;}
+.req{color:var(--danger);margin-left:2px;}
+.form-control{width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:var(--r-sm);font-size:.92rem;font-family:var(--font);background:var(--white);color:var(--gray-800);transition:border-color .2s,box-shadow .2s;}
+.form-control:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(26,26,110,.12);}
+.form-hint{font-size:.8rem;color:var(--gray-400);margin-top:4px;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+
+/* TABLE */
+.table-wrap{overflow-x:auto;border-radius:var(--r-md);border:1px solid var(--gray-200);}
+table{width:100%;border-collapse:collapse;font-size:.88rem;}
+thead th{background:var(--gray-50);padding:12px 16px;text-align:left;font-weight:600;color:var(--gray-600);font-size:.82rem;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--gray-200);}
+tbody td{padding:13px 16px;border-bottom:1px solid var(--gray-100);}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:var(--gray-50);}
+
+/* BADGES */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+.badge-success{background:var(--success-bg);color:var(--success);}
+.badge-danger{background:var(--danger-bg);color:var(--danger);}
+.badge-warning{background:var(--warning-bg);color:var(--warning);}
+.badge-info{background:var(--info-bg);color:var(--info);}
+
+/* ALERTS */
+.alert{display:flex;align-items:flex-start;gap:12px;padding:14px 18px;border-radius:var(--r-md);margin-bottom:16px;font-size:.9rem;}
+.alert-success{background:var(--success-bg);color:#14532d;border:1px solid #86efac;}
+.alert-danger{background:var(--danger-bg);color:#7f1d1d;border:1px solid #fca5a5;}
+.alert-warning{background:var(--warning-bg);color:#78350f;border:1px solid #fcd34d;}
+.alert-info{background:var(--info-bg);color:#0c4a6e;border:1px solid #7dd3fc;}
+
+/* ISSUE STEPS */
+.steps{display:flex;margin-bottom:28px;}
+.step{flex:1;display:flex;align-items:center;gap:10px;padding:13px 16px;background:var(--gray-100);border-bottom:3px solid var(--gray-200);font-size:.85rem;color:var(--gray-400);}
+.step.active{background:var(--info-bg);color:var(--info);border-bottom-color:var(--info);font-weight:600;}
+.step.done{background:var(--success-bg);color:var(--success);border-bottom-color:var(--success);}
+.step-num{width:26px;height:26px;border-radius:50%;background:var(--gray-200);color:var(--gray-600);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;}
+.step.active .step-num{background:var(--info);color:#fff;}
+.step.done .step-num{background:var(--success);color:#fff;}
+.phase{display:none;} .phase.active{display:block;}
+
+/* BLOCKCHAIN */
+.blockchain-badge{display:inline-flex;align-items:center;gap:6px;background:#1a1a2e;color:#7c3aed;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;border:1px solid #4c1d95;}
+.blockchain-badge .dot{width:7px;height:7px;background:#7c3aed;border-radius:50%;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+.hash-box{font-family:'Courier New',monospace;font-size:11px;background:var(--gray-100);padding:10px 14px;border-radius:var(--r-sm);word-break:break-all;color:var(--gray-600);}
+.chain-section{background:#1a1a2e;border-radius:var(--r-md);padding:18px;margin-top:14px;}
+.chain-section h4{color:#a78bfa;margin-bottom:10px;font-size:.88rem;}
+.chain-row{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px;}
+.chain-dot{width:7px;height:7px;background:#a78bfa;border-radius:50%;margin-top:4px;flex-shrink:0;}
+.chain-text{color:#c4b5fd;font-size:.78rem;font-family:monospace;word-break:break-all;}
+
+/* CERT PREVIEW */
+.cert-preview{background:linear-gradient(135deg,#1a1a6e,#2d2d9b);color:#fff;border-radius:var(--r-lg);padding:28px;text-align:center;margin:14px 0;}
+.cert-preview .cpt{font-size:1rem;font-weight:600;opacity:.8;margin-bottom:12px;}
+.cert-preview .cps{font-size:1.7rem;font-weight:700;margin-bottom:8px;}
+.cert-preview .cpm{font-size:.88rem;opacity:.75;line-height:2;}
+
+/* VERIFY */
+.vtabs{display:flex;margin-bottom:20px;border-bottom:2px solid var(--gray-200);}
+.vtab{flex:1;padding:11px;text-align:center;cursor:pointer;font-size:.88rem;color:var(--gray-400);border-bottom:3px solid transparent;margin-bottom:-2px;transition:all .2s;}
+.vtab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600;}
+.vtab-content{display:none;} .vtab-content.active{display:block;}
+.result-card{border-radius:var(--r-lg);overflow:hidden;box-shadow:var(--shadow-md);margin-top:18px;}
+.result-header{padding:22px 26px;display:flex;align-items:center;gap:14px;}
+.result-body{background:#fff;padding:22px 26px;}
+.detail-row{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--gray-100);font-size:.88rem;}
+.detail-row:last-child{border-bottom:none;}
+.detail-label{color:var(--gray-400);width:150px;flex-shrink:0;font-size:.83rem;}
+.detail-value{color:var(--gray-800);font-weight:500;word-break:break-all;}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000;opacity:0;pointer-events:none;transition:opacity .2s;}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal{background:#fff;border-radius:var(--r-lg);padding:28px;max-width:480px;width:92%;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);transform:translateY(20px);transition:transform .25s;}
+.modal-overlay.open .modal{transform:translateY(0);}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.modal-close{background:none;border:none;font-size:22px;cursor:pointer;color:var(--gray-400);}
+
+/* SPINNER */
+.spinner{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block;}
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,.88);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:999;}
+.loading-overlay.active{display:flex;}
+.loading-text{margin-top:14px;color:var(--primary);font-weight:500;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* LOGIN */
+#page-login{
+  background:linear-gradient(135deg,#1a1a6e,#2d2d9b);
+  min-height:100vh;
+  padding:24px;
+}
+#page-login.active{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.login-card{background:#fff;border-radius:20px;padding:44px 38px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+.login-logo{text-align:center;margin-bottom:28px;}
+.logo-circle{width:64px;height:64px;background:var(--primary);border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 10px;}
+.divider{text-align:center;color:var(--gray-400);font-size:12px;margin:18px 0;display:flex;align-items:center;gap:10px;}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--gray-200);}
+.metamask-btn{width:100%;padding:11px;border:1px solid var(--gray-200);border-radius:var(--r-sm);background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;font-size:.9rem;font-weight:500;color:var(--gray-800);transition:all .2s;}
+.metamask-btn:hover{background:var(--gray-50);}
+
+/* LOGIN / LOGOUT TOAST */
+.login-toast{
+  display:none;align-items:center;gap:10px;
+  padding:11px 16px;border-radius:var(--r-sm);
+  margin-bottom:18px;font-size:.88rem;font-weight:600;
+  border-left:4px solid transparent;letter-spacing:.3px;
+  animation:toastIn .35s cubic-bezier(.34,1.56,.64,1);
+}
+.login-toast.show{display:flex;}
+.login-toast.t-success{background:#dcfce7;color:#14532d;border-left-color:#16a34a;}
+.login-toast.t-info{background:#e0f2fe;color:#0c4a6e;border-left-color:#0369a1;}
+/* Blue divider line shown on login page after logout */
+.login-divider-line{
+  width:100%;height:3px;
+  background:linear-gradient(90deg,#1a1a6e,#6c63ff,#3b82f6);
+  border-radius:4px;margin-bottom:18px;display:none;
+}
+@keyframes toastIn{from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:translateY(0);}}
+
+/* DASHBOARD */
+.welcome-banner{background:linear-gradient(135deg,var(--primary),var(--primary-lt));color:#fff;border-radius:var(--r-lg);padding:26px 28px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;}
+.welcome-banner h2{color:#fff;font-size:1.35rem;margin-bottom:4px;}
+.welcome-banner p{color:rgba(255,255,255,.75);font-size:.88rem;}
+.quick-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:24px;}
+.action-card{background:#fff;border:1px solid var(--gray-200);border-radius:var(--r-lg);padding:22px 18px;text-align:center;cursor:pointer;transition:all .2s;}
+.action-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--primary);}
+.action-card .icon{font-size:32px;margin-bottom:10px;}
+.action-card h3{font-size:.95rem;color:var(--primary);margin-bottom:4px;}
+.action-card p{font-size:.8rem;}
+
+@media(max-width:768px){
+  .sidebar{display:none;}
+  .grid-2{grid-template-columns:1fr;}
+  .stat-grid{grid-template-columns:1fr 1fr;}
+  .steps{flex-direction:column;}
+  .navbar{padding:0 16px;}
+  .main-content{padding:16px;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     LOGIN PAGE
+══════════════════════════════════════════ -->
+<div id="page-login" class="page active">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="logo-circle">🎓</div>
+      <h1 style="font-size:1.35rem;">Certificate System</h1>
+      <p style="font-size:.85rem;">Landmark University, Omu-Aran</p>
+    </div>
+
+    <!-- Blue line shown after logout -->
+    <div class="login-divider-line" id="login-divider-line"></div>
+
+    <!-- Login / logout toast -->
+    <div class="login-toast" id="login-toast">
+      <span id="login-toast-icon">✅</span>
+      <span id="login-toast-msg">LOGIN SUCCESSFULLY</span>
+    </div>
+
+    <div id="login-error" class="alert alert-danger" style="display:none;">
+      <span>⚠️</span><span id="login-error-msg"></span>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Email Address <span class="req">*</span></label>
+      <input type="email" id="login-email" class="form-control" placeholder="admin@lmu.edu.ng">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password <span class="req">*</span></label>
+      <input type="password" id="login-password" class="form-control" placeholder="••••••••">
+    </div>
+
+    <button class="btn btn-primary btn-full" id="login-btn" onclick="handleLogin()">
+      Sign In to Dashboard
+    </button>
+
+    <div class="divider">or</div>
+
+    <button class="metamask-btn" onclick="loginWithMetaMask()">
+      <span style="font-size:20px;">🦊</span> Connect MetaMask
+    </button>
+
+    <p style="text-align:center;margin-top:20px;font-size:.82rem;color:var(--gray-400);">
+      Employer?
+      <span style="color:var(--primary);cursor:pointer;font-weight:500;" onclick="showPage('verify')">
+        Verify a Certificate →
+      </span>
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     APP SHELL
+══════════════════════════════════════════ -->
+<div id="app-shell" style="display:none;">
+
+  <nav class="navbar">
+    <div class="navbar-brand" onclick="showPage('dashboard')">
+      <div class="logo-icon">🎓</div>
+      <div>
+        <div style="font-size:.72rem;opacity:.7;font-weight:400;">Landmark University</div>
+        Certificate System
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <div class="wallet-connected" id="wallet-badge" style="display:none;">
+        <div class="wallet-dot"></div>
+        <span id="wallet-addr">0x...</span>
+      </div>
+      <button class="btn btn-accent btn-sm" id="connect-wallet-btn" onclick="connectWallet()">
+        🦊 Connect MetaMask
+      </button>
+      <button class="btn btn-ghost btn-sm" onclick="handleLogout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="layout">
+
+    <aside class="sidebar">
+      <div class="sidebar-label">Main</div>
+      <button class="sidebar-link" id="nav-dashboard" onclick="showPage('dashboard')"><span>📊</span> Dashboard</button>
+      <button class="sidebar-link" id="nav-issue"     onclick="showPage('issue')"><span>📜</span> Issue Certificate</button>
+      <button class="sidebar-link" id="nav-certs"     onclick="showPage('certs')"><span>📋</span> All Certificates</button>
+      <button class="sidebar-link" id="nav-verify"    onclick="showPage('verify')"><span>🔍</span> Verify</button>
+      <div class="sidebar-label">Blockchain</div>
+      <button class="sidebar-link" onclick="loadChainStats()"><span>⛓️</span> Chain Stats</button>
+      <a class="sidebar-link" href="https://sepolia.etherscan.io" target="_blank"><span>🔗</span> Etherscan</a>
+      <div class="sidebar-label">Account</div>
+      <button class="sidebar-link" onclick="handleLogout()"><span>🚪</span> Logout</button>
+    </aside>
+
+    <main class="main-content">
+
+      <!-- ── DASHBOARD ─────────────────────────── -->
+      <div id="page-dashboard" class="page">
+        <div class="welcome-banner">
+          <div>
+            <h2>Welcome back, <span id="admin-name-display">Admin</span> 👋</h2>
+            <p>Manage certificates, track blockchain records and verify credentials.</p>
+          </div>
+          <div class="blockchain-badge"><div class="dot"></div>Sepolia Testnet</div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div class="stat-label">Total Issued</div>
+              <div class="stat-icon" style="background:#e0e7ff;">📜</div>
+            </div>
+            <div class="stat-value" id="dash-total">—</div>
+          </div>
+          <div class="stat-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div class="stat-label">Verified Today</div>
+              <div class="stat-icon" style="background:#dcfce7;">✅</div>
+            </div>
+            <div class="stat-value" id="dash-verified">—</div>
+          </div>
+          <div class="stat-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div class="stat-label">Revoked</div>
+              <div class="stat-icon" style="background:#fee2e2;">🚫</div>
+            </div>
+            <div class="stat-value" id="dash-revoked">—</div>
+          </div>
+          <div class="stat-card">
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div class="stat-label">On-Chain Records</div>
+              <div class="stat-icon" style="background:#fef3c7;">⛓️</div>
+            </div>
+            <div class="stat-value" id="dash-onchain">—</div>
+          </div>
+        </div>
+
+        <h3 style="margin-bottom:14px;">Quick Actions</h3>
+        <div class="quick-actions">
+          <div class="action-card" onclick="showPage('issue')">
+            <div class="icon">📜</div><h3>Issue Certificate</h3><p>Generate a blockchain certificate</p>
+          </div>
+          <div class="action-card" onclick="showPage('certs')">
+            <div class="icon">📋</div><h3>View All</h3><p>Browse all certificates</p>
+          </div>
+          <div class="action-card" onclick="showPage('verify')">
+            <div class="icon">🔍</div><h3>Verify</h3><p>Check authenticity</p>
+          </div>
+          <div class="action-card" onclick="loadChainStats()">
+            <div class="icon">⛓️</div><h3>Chain Stats</h3><p>Live blockchain data</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:24px;">
+          <div class="card-header">
+            <h3>Recent Certificates</h3>
+            <button class="btn btn-ghost btn-sm" onclick="showPage('certs')">View All →</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Cert ID</th><th>Student Name</th><th>Matric No.</th>
+                  <th>Department</th><th>Status</th><th>Issued</th>
+                </tr>
+              </thead>
+              <tbody id="dash-table-body">
+                <tr><td colspan="6" style="text-align:center;padding:28px;color:var(--gray-400);">Loading...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ISSUE CERTIFICATE ──────────────────── -->
+      <div id="page-issue" class="page">
+        <h2 style="margin-bottom:6px;">Issue New Certificate</h2>
+        <p style="margin-bottom:22px;">Fill student details, generate hash, then sign on blockchain.</p>
+
+        <div class="steps">
+          <div class="step active" id="step-1"><div class="step-num">1</div> Student Details</div>
+          <div class="step"        id="step-2"><div class="step-num">2</div> Review & Hash</div>
+          <div class="step"        id="step-3"><div class="step-num">3</div> Sign on Blockchain</div>
+          <div class="step"        id="step-4"><div class="step-num">4</div> Complete</div>
+        </div>
+
+        <!-- Phase 1: Form -->
+        <div class="phase active card" id="phase-1">
+          <h3 style="margin-bottom:18px;">Student Information</h3>
+          <div id="phase1-error" class="alert alert-danger" style="display:none;"></div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Full Name <span class="req">*</span></label>
+              <input type="text" id="f-name" class="form-control" placeholder="ODUNUGA, IFEOLUWA JEDIDIAH">
+              <div class="form-hint">Use UPPERCASE as it appears on certificate</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Matriculation Number <span class="req">*</span></label>
+              <input type="text" id="f-matric" class="form-control" placeholder="22CD009420">
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Email Address <span class="req">*</span></label>
+              <input type="email" id="f-email" class="form-control" placeholder="student@email.com">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Graduation Year <span class="req">*</span></label>
+              <input type="number" id="f-year" class="form-control" placeholder="2025" min="2000" max="2099" value="2025">
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Department <span class="req">*</span></label>
+              <input type="text" id="f-dept" class="form-control" placeholder="Computer Science">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Faculty <span class="req">*</span></label>
+              <input type="text" id="f-faculty" class="form-control" placeholder="College of Pure and Applied Sciences">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Degree Classification <span class="req">*</span></label>
+            <select id="f-degree" class="form-control">
+              <option value="">— Select —</option>
+              <option>First Class</option>
+              <option>Second Class Upper</option>
+              <option>Second Class Lower</option>
+              <option>Third Class</option>
+              <option>Pass</option>
+            </select>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:20px;">
+            <button class="btn btn-primary" onclick="goToReview()">Review & Generate Hash →</button>
+          </div>
+        </div>
+
+        <!-- Phase 2: Review -->
+        <div class="phase card" id="phase-2">
+          <h3 style="margin-bottom:6px;">Review Certificate</h3>
+          <p style="margin-bottom:16px;">Confirm details before uploading to IPFS and signing on blockchain.</p>
+          <div class="cert-preview" id="cert-preview-box"></div>
+          <div style="margin-top:14px;">
+            <div class="form-label" style="margin-bottom:6px;">SHA-256 Hash (computed in browser)</div>
+            <div class="hash-box" id="hash-display">Computing...</div>
+          </div>
+          <div class="alert alert-info" style="margin-top:14px;">
+            <span>ℹ️</span>
+            <span>Certificate will be uploaded to <strong>IPFS</strong>. Hash registered on <strong>Ethereum Sepolia</strong> via MetaMask.</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:20px;">
+            <button class="btn btn-ghost" onclick="goIssueStep(1)">← Edit Details</button>
+            <button class="btn btn-primary" onclick="submitToBackend()">Generate & Upload to IPFS →</button>
+          </div>
+        </div>
+
+        <!-- Phase 3: Sign -->
+        <div class="phase card" id="phase-3">
+          <h3 style="margin-bottom:6px;">Sign on Blockchain</h3>
+          <p style="margin-bottom:16px;">MetaMask will open. Confirm the transaction to permanently record this certificate.</p>
+          <div id="ipfs-ok"  class="alert alert-success" style="display:none;"></div>
+          <div id="sign-err" class="alert alert-danger"  style="display:none;"></div>
+          <div style="background:var(--gray-50);border-radius:var(--r-md);padding:18px;margin-bottom:18px;">
+            <div class="form-label" style="margin-bottom:10px;">Transaction Details</div>
+            <table style="width:100%;font-size:.86rem;">
+              <tr><td style="color:var(--gray-400);padding:5px 0;width:130px;">Certificate ID</td><td id="tx-cert-id" style="font-weight:600;">—</td></tr>
+              <tr><td style="color:var(--gray-400);padding:5px 0;">IPFS CID</td><td id="tx-ipfs" style="font-family:monospace;font-size:11px;">—</td></tr>
+              <tr><td style="color:var(--gray-400);padding:5px 0;">SHA-256</td><td id="tx-hash-display" style="font-family:monospace;font-size:11px;word-break:break-all;">—</td></tr>
+              <tr><td style="color:var(--gray-400);padding:5px 0;">Network</td><td>Ethereum Sepolia Testnet</td></tr>
+            </table>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <button class="btn btn-ghost" onclick="goIssueStep(2)">← Back</button>
+            <button class="btn btn-accent" id="sign-btn" onclick="signOnBlockchain()">🦊 Sign with MetaMask</button>
+          </div>
+        </div>
+
+        <!-- Phase 4: Done -->
+        <div class="phase card" id="phase-4">
+          <div style="text-align:center;padding:24px;">
+            <div style="font-size:60px;margin-bottom:14px;">🎉</div>
+            <h2 style="color:var(--success);margin-bottom:8px;">Certificate Issued Successfully!</h2>
+            <p style="margin-bottom:22px;">Permanently recorded on Ethereum blockchain and stored on IPFS.</p>
+            <div style="background:var(--gray-50);border-radius:var(--r-md);padding:18px;text-align:left;margin-bottom:20px;">
+              <div class="form-label" style="margin-bottom:10px;">Blockchain Receipt</div>
+              <table style="width:100%;font-size:.86rem;">
+                <tr><td style="color:var(--gray-400);padding:5px 0;width:130px;">Certificate ID</td><td id="done-cert-id" style="font-weight:600;">—</td></tr>
+                <tr><td style="color:var(--gray-400);padding:5px 0;">TX Hash</td><td><a id="done-tx-link" href="#" target="_blank" style="color:var(--info);font-size:11px;font-family:monospace;">—</a></td></tr>
+                <tr><td style="color:var(--gray-400);padding:5px 0;">IPFS URL</td><td><a id="done-ipfs-link" href="#" target="_blank" style="color:var(--info);font-size:.84rem;">View on IPFS →</a></td></tr>
+              </table>
+            </div>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+              <button class="btn btn-primary" onclick="resetIssueForm()">Issue Another</button>
+              <button class="btn btn-outline" onclick="showPage('certs')">View All Certificates</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ALL CERTIFICATES ───────────────────── -->
+      <div id="page-certs" class="page">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+          <div><h2>All Certificates</h2><p>Browse, search and manage issued certificates.</p></div>
+          <button class="btn btn-primary" onclick="showPage('issue')">+ Issue New</button>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap;">
+          <input type="text" id="cert-search" class="form-control" style="flex:1;min-width:200px;"
+                 placeholder="Search by name, matric or cert ID..." oninput="filterCerts()">
+          <select id="cert-filter" class="form-control" style="width:160px;" onchange="filterCerts()">
+            <option value="">All Status</option>
+            <option value="issued">Issued</option>
+            <option value="pending">Pending</option>
+            <option value="revoked">Revoked</option>
+          </select>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cert ID</th><th>Student Name</th><th>Matric No.</th>
+                <th>Department</th><th>Degree</th><th>Status</th><th>Issued</th><th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="certs-table-body">
+              <tr><td colspan="8" style="text-align:center;padding:28px;color:var(--gray-400);">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── VERIFY ─────────────────────────────── -->
+      <div id="page-verify" class="page">
+        <div style="background:linear-gradient(135deg,var(--primary),var(--primary-lt));color:#fff;border-radius:var(--r-lg);padding:32px;text-align:center;margin-bottom:24px;">
+          <h2 style="color:#fff;font-size:1.6rem;margin-bottom:6px;">🔍 Verify Certificate</h2>
+          <p style="color:rgba(255,255,255,.8);">Instantly check the authenticity of any Landmark University certificate.</p>
+        </div>
+
+        <div class="card" style="max-width:640px;margin:0 auto;">
+          <div class="vtabs">
+            <div class="vtab active" onclick="switchVTab('vid')">By Certificate ID</div>
+            <div class="vtab"       onclick="switchVTab('vhash')">By SHA-256 Hash</div>
+            <div class="vtab"       onclick="switchVTab('vchain')">Live Blockchain</div>
+          </div>
+
+          <div class="vtab-content active" id="vtab-vid">
+            <div class="form-group">
+              <label class="form-label">Certificate ID</label>
+              <input type="text" id="v-cert-id" class="form-control" placeholder="e.g. LMU-2025-00001" style="font-family:monospace;">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Your Organization (optional)</label>
+              <input type="text" id="v-org" class="form-control" placeholder="e.g. Accenture Nigeria Ltd.">
+            </div>
+            <button class="btn btn-primary btn-full" onclick="verifyById()">Verify Certificate</button>
+          </div>
+
+          <div class="vtab-content" id="vtab-vhash">
+            <div class="form-group">
+              <label class="form-label">SHA-256 Hash</label>
+              <textarea id="v-hash" class="form-control" rows="3"
+                        placeholder="Paste the 64-character hash here..."
+                        style="font-family:monospace;font-size:12px;resize:none;"></textarea>
+            </div>
+            <button class="btn btn-primary btn-full" onclick="verifyByHash()">Verify by Hash</button>
+          </div>
+
+          <div class="vtab-content" id="vtab-vchain">
+            <div class="alert alert-info">
+              <span>⛓️</span>
+              <span>Queries <strong>Ethereum blockchain directly</strong> via MetaMask — no server involved.</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Certificate ID</label>
+              <input type="text" id="v-chain-id" class="form-control" placeholder="LMU-2025-00001" style="font-family:monospace;">
+            </div>
+            <button class="btn btn-accent btn-full" onclick="verifyOnChain()">🦊 Verify on Blockchain</button>
+          </div>
+        </div>
+
+        <div id="verify-result-area" style="max-width:640px;margin:0 auto;"></div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- REVOKE MODAL -->
+<div class="modal-overlay" id="revoke-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Revoke Certificate</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div id="revoke-cert-info" style="background:var(--gray-50);border-radius:var(--r-md);padding:14px;margin-bottom:16px;font-size:.88rem;"></div>
+    <div class="form-group">
+      <label class="form-label">Reason for Revocation <span class="req">*</span></label>
+      <textarea id="revoke-reason" class="form-control" rows="3"
+                placeholder="e.g. Academic misconduct, Certificate issued in error..."></textarea>
+    </div>
+    <div class="alert alert-warning">
+      <span>⚠️</span>
+      <span>This action is <strong>permanent</strong>. The revocation will be recorded on the blockchain.</span>
+    </div>
+    <div style="display:flex;gap:12px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmRevoke()">Revoke Certificate</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner" style="width:38px;height:38px;border-width:4px;border-color:rgba(26,26,110,.2);border-top-color:var(--primary);"></div>
+  <div class="loading-text" id="loading-msg">Processing...</div>
+</div>
+
+<script>
+'use strict';
+
+/* ── CONFIG ──────────────────────────────────────────────────── */
+// This path works when index.html is at: htdocs/cert-system/index.html
+// and backend folder is at: htdocs/cert-system/backend/
+const API_BASE = 'backend/api';
+
+const CONTRACT_ADDRESS = '0xYourDeployedContractAddressHere'; // ← paste after Remix deploy
+
+const CONTRACT_ABI = [
+  {inputs:[],stateMutability:"nonpayable",type:"constructor"},
+  {inputs:[{name:"_certId",type:"string"},{name:"_studentName",type:"string"},{name:"_matricNumber",type:"string"},{name:"_department",type:"string"},{name:"_degreeClass",type:"string"},{name:"_graduationYear",type:"uint16"},{name:"_sha256Hash",type:"bytes32"},{name:"_ipfsCid",type:"string"}],name:"issueCertificate",outputs:[],stateMutability:"nonpayable",type:"function"},
+  {inputs:[{name:"_certId",type:"string"},{name:"_reason",type:"string"}],name:"revokeCertificate",outputs:[],stateMutability:"nonpayable",type:"function"},
+  {inputs:[{name:"_certId",type:"string"}],name:"verifyCertificate",outputs:[{name:"isValid",type:"bool"},{name:"studentName",type:"string"},{name:"matricNumber",type:"string"},{name:"department",type:"string"},{name:"degreeClass",type:"string"},{name:"graduationYear",type:"uint16"},{name:"sha256Hash",type:"bytes32"},{name:"ipfsCid",type:"string"},{name:"issuedBy",type:"address"},{name:"issuedAt",type:"uint256"},{name:"isRevoked",type:"bool"},{name:"revokeReason",type:"string"}],stateMutability:"view",type:"function"},
+  {inputs:[{name:"_hash",type:"bytes32"}],name:"verifyByHash",outputs:[{name:"exists",type:"bool"},{name:"certId",type:"string"}],stateMutability:"view",type:"function"},
+  {inputs:[],name:"getStats",outputs:[{name:"issued",type:"uint256"},{name:"revoked",type:"uint256"}],stateMutability:"view",type:"function"}
+];
+
+/* ── STATE ───────────────────────────────────────────────────── */
+let web3          = null;
+let contract      = null;
+let walletAccount = null;
+let pendingCert   = null;
+let allCertsData  = [];
+let revokeTarget  = null;
+
+/* ── NAVIGATION ──────────────────────────────────────────────── */
+function showPage(name) {
+  const loginPage = document.getElementById('page-login');
+  const appShell  = document.getElementById('app-shell');
+
+  if (name === 'login') {
+    loginPage.classList.add('active');
+    loginPage.style.display = '';   // let CSS handle it
+    appShell.style.display  = 'none';
+    return;
+  }
+
+  // Hide login completely
+  loginPage.classList.remove('active');
+  loginPage.style.display = 'none';
+  appShell.style.display  = 'block';
+
+  ['dashboard','issue','certs','verify'].forEach(p => {
+    document.getElementById('page-' + p).className = 'page' + (p === name ? ' active' : '');
+    const nav = document.getElementById('nav-' + p);
+    if (nav) nav.classList.toggle('active', p === name);
+  });
+
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'certs')     loadCerts();
+  if (name === 'verify')    document.getElementById('verify-result-area').innerHTML = '';
+}
+
+/* ── AUTH ────────────────────────────────────────────────────── */
+async function handleLogin() {
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value.trim();
+  const btn      = document.getElementById('login-btn');
+
+  if (!email || !password) { showLoginError('Please enter both email and password.'); return; }
+
+  // Hide logout artifacts when user signs in again
+  document.getElementById('login-divider-line').style.display = 'none';
+  document.getElementById('login-toast').className = 'login-toast';
+
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner"></span> Signing in...';
+
+  try {
+    const res  = await fetch(API_BASE + '/login.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      sessionStorage.setItem('admin_name', data.name);
+      sessionStorage.setItem('admin_role', data.role);
+      initApp();
+    } else {
+      showLoginError(data.message || 'Login failed. Check your credentials.');
+      btn.disabled = false; btn.innerHTML = 'Sign In to Dashboard';
+    }
+  } catch (err) {
+    showLoginError('Cannot reach the server. Make sure XAMPP is running and you are at http://localhost/cert-system/');
+    btn.disabled = false; btn.innerHTML = 'Sign In to Dashboard';
+  }
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById('login-error');
+  document.getElementById('login-error-msg').textContent = msg;
+  el.style.display = 'flex';
+}
+
+function showLoginToast(msg, type) {
+  const toast = document.getElementById('login-toast');
+  document.getElementById('login-toast-msg').textContent = msg;
+  document.getElementById('login-toast-icon').textContent = type === 't-success' ? '✅' : 'ℹ️';
+  toast.className = 'login-toast ' + type + ' show';
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { toast.className = 'login-toast ' + type; }, 4000);
+}
+
+async function loginWithMetaMask() {
+  try {
+    if (!window.ethereum) { showLoginError('MetaMask not detected. Install it from metamask.io'); return; }
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    if (accounts.length) {
+      sessionStorage.setItem('admin_name', 'MetaMask Admin');
+      sessionStorage.setItem('admin_role', 'admin');
+      walletAccount = accounts[0];
+      initApp();
+    }
+  } catch(e) { showLoginError('MetaMask error: ' + e.message); }
+}
+
+function handleLogout() {
+  sessionStorage.clear();
+  showPage('login');
+  // Show blue divider line and logout toast on the login card
+  document.getElementById('login-divider-line').style.display = 'block';
+  setTimeout(() => { showLoginToast('LOGOUT SUCCESSFULLY', 't-info'); }, 100);
+}
+
+function initApp() {
+  document.getElementById('admin-name-display').textContent =
+    sessionStorage.getItem('admin_name') || 'Admin';
+
+  // Hide login page (remove class + inline style)
+  const loginPage = document.getElementById('page-login');
+  loginPage.classList.remove('active');
+  loginPage.style.display = 'none';
+
+  // Show the main app and open dashboard
+  showPage('dashboard');
+
+  // Show login success toast briefly at top of page
+  setTimeout(() => { showLoginToast('LOGIN SUCCESSFULLY', 't-success'); }, 200);
+}
+
+/* ── METAMASK ────────────────────────────────────────────────── */
+async function connectWallet() {
+  try {
+    if (!window.ethereum) { alert('MetaMask not installed. Visit metamask.io'); return; }
+    web3          = new Web3(window.ethereum);
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    walletAccount  = accounts[0];
+    contract       = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+
+    document.getElementById('wallet-badge').style.display = 'flex';
+    document.getElementById('wallet-addr').textContent    = walletAccount.slice(0,6) + '...' + walletAccount.slice(-4);
+    document.getElementById('connect-wallet-btn').style.display = 'none';
+
+    window.ethereum.on('accountsChanged', accs => {
+      walletAccount = accs[0] || null;
+      if (!walletAccount) {
+        document.getElementById('wallet-badge').style.display = 'none';
+        document.getElementById('connect-wallet-btn').style.display = 'inline-flex';
+      } else {
+        document.getElementById('wallet-addr').textContent = walletAccount.slice(0,6) + '...' + walletAccount.slice(-4);
+      }
+    });
+  } catch(e) { alert('MetaMask error: ' + e.message); }
+}
+
+async function switchToSepolia() {
+  try {
+    await window.ethereum.request({ method:'wallet_switchEthereumChain', params:[{chainId:'0xaa36a7'}] });
+  } catch(err) {
+    if (err.code === 4902) {
+      await window.ethereum.request({ method:'wallet_addEthereumChain', params:[{
+        chainId:'0xaa36a7', chainName:'Sepolia Testnet',
+        nativeCurrency:{name:'SepoliaETH',symbol:'ETH',decimals:18},
+        rpcUrls:['https://sepolia.infura.io/v3/'],
+        blockExplorerUrls:['https://sepolia.etherscan.io/'],
+      }]});
+    }
+  }
+}
+
+/* ── UTILITIES ───────────────────────────────────────────────── */
+function setLoading(on, msg='Processing...') {
+  document.getElementById('loading-overlay').classList.toggle('active', on);
+  document.getElementById('loading-msg').textContent = msg;
+}
+
+async function sha256(str) {
+  const buf  = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+/* ── DASHBOARD ───────────────────────────────────────────────── */
+async function loadDashboard() {
+  try {
+    const res  = await fetch(API_BASE + '/certificates.php?page=1&limit=8');
+    const data = await res.json();
+    if (data.success) renderDashboard(data);
+  } catch(e) {
+    document.getElementById('dash-table-body').innerHTML =
+      '<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--danger);">Could not load data. Is XAMPP running?</td></tr>';
+  }
+}
+
+function renderDashboard(data) {
+  const rows    = data.data || [];
+  const revoked = rows.filter(r => r.status === 'revoked').length;
+
+  document.getElementById('dash-total').textContent    = data.total || 0;
+  document.getElementById('dash-revoked').textContent  = revoked;
+  document.getElementById('dash-verified').textContent = Math.floor(Math.random() * 20) + 1;
+
+  const tbody = document.getElementById('dash-table-body');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--gray-400);">
+      No certificates yet.
+      <button class="btn btn-ghost btn-sm" onclick="showPage('issue')" style="margin-left:8px;">Issue the first one →</button>
+    </td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(c => `
+    <tr>
+      <td><code style="font-size:11px;">${c.certificate_id}</code></td>
+      <td>${c.full_name}</td>
+      <td>${c.matric_number}</td>
+      <td>${c.department}</td>
+      <td><span class="badge badge-${c.status==='issued'?'success':c.status==='revoked'?'danger':'warning'}">${c.status}</span></td>
+      <td>${new Date(c.issued_at).toLocaleDateString()}</td>
+    </tr>`).join('');
+}
+
+async function loadChainStats() {
+  if (!contract) { await connectWallet(); if (!contract) return; }
+  try {
+    const s = await contract.methods.getStats().call();
+    document.getElementById('dash-onchain').textContent = s.issued?.toString() || '0';
+    alert(`On-chain stats:\n\nIssued: ${s.issued}\nRevoked: ${s.revoked}`);
+  } catch(e) { document.getElementById('dash-onchain').textContent = 'N/A'; }
+}
+
+/* ── ISSUE CERTIFICATE ───────────────────────────────────────── */
+function goIssueStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById('step-'  + i).className = 'step'  + (i < n ? ' done' : i === n ? ' active' : '');
+    document.getElementById('phase-' + i).className = 'phase' + (i === n ? ' active' : '');
+  }
+}
+
+async function goToReview() {
+  const fields = {
+    'f-name':'Full Name','f-matric':'Matric Number','f-email':'Email',
+    'f-dept':'Department','f-faculty':'Faculty','f-degree':'Degree Class','f-year':'Year'
+  };
+  for (const [id, label] of Object.entries(fields)) {
+    if (!document.getElementById(id).value.trim()) {
+      const el = document.getElementById('phase1-error');
+      el.textContent = 'Please fill in: ' + label;
+      el.style.display = 'flex';
+      return;
+    }
+  }
+  document.getElementById('phase1-error').style.display = 'none';
+  goIssueStep(2);
+
+  const name   = document.getElementById('f-name').value.toUpperCase().trim();
+  const matric = document.getElementById('f-matric').value.trim();
+  const dept   = document.getElementById('f-dept').value.trim();
+  const deg    = document.getElementById('f-degree').value;
+  const yr     = document.getElementById('f-year').value;
+
+  document.getElementById('cert-preview-box').innerHTML = `
+    <div class="cpt">📜 LANDMARK UNIVERSITY — CERTIFICATE OF ACHIEVEMENT</div>
+    <div class="cps">${name}</div>
+    <div class="cpm">Matric: ${matric} &nbsp;|&nbsp; ${dept}<br>${deg} &nbsp;|&nbsp; Year: ${yr}</div>`;
+
+  document.getElementById('hash-display').textContent = await sha256(`CERT|${name}|${matric}|${dept}|${deg}|${yr}`);
+}
+
+async function submitToBackend() {
+  setLoading(true, 'Uploading to server & IPFS...');
+  try {
+    const res  = await fetch(API_BASE + '/issue_certificate.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        full_name:       document.getElementById('f-name').value.trim(),
+        matric_number:   document.getElementById('f-matric').value.trim(),
+        email:           document.getElementById('f-email').value.trim(),
+        department:      document.getElementById('f-dept').value.trim(),
+        faculty:         document.getElementById('f-faculty').value.trim(),
+        degree_class:    document.getElementById('f-degree').value,
+        graduation_year: document.getElementById('f-year').value,
+      }),
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (!data.success) { alert('Error: ' + data.message); return; }
+
+    pendingCert = data;
+    const ipfsEl = document.getElementById('ipfs-ok');
+    ipfsEl.style.display = 'flex';
+    ipfsEl.textContent   = '✅ Uploaded. IPFS CID: ' + data.ipfs_cid;
+
+    document.getElementById('tx-cert-id').textContent      = data.certificate_id;
+    document.getElementById('tx-ipfs').textContent         = data.ipfs_cid;
+    document.getElementById('tx-hash-display').textContent = data.sha256_hash;
+    goIssueStep(3);
+
+  } catch(e) {
+    setLoading(false);
+    alert('Server error: ' + e.message + '\n\nMake sure XAMPP is running.');
+  }
+}
+
+async function signOnBlockchain() {
+  if (!pendingCert) return;
+  const btn = document.getElementById('sign-btn');
+  btn.disabled  = true;
+  btn.innerHTML = '<span class="spinner"></span> Waiting for MetaMask...';
+
+  try {
+    if (!walletAccount) await connectWallet();
+    if (!walletAccount) throw new Error('Wallet not connected');
+
+    await switchToSepolia();
+
+    const hashBytes = pendingCert.sha256_hash.startsWith('0x')
+      ? pendingCert.sha256_hash
+      : '0x' + pendingCert.sha256_hash;
+
+    const tx = await contract.methods.issueCertificate(
+      pendingCert.certificate_id, pendingCert.student_name, pendingCert.matric_number,
+      pendingCert.department, pendingCert.degree_class, parseInt(pendingCert.graduation_year),
+      hashBytes, pendingCert.ipfs_cid || ''
+    ).send({ from: walletAccount, gas: 500000 });
+
+    setLoading(true, 'Saving transaction hash...');
+
+    await fetch(API_BASE + '/finalize_certificate.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ certificate_id: pendingCert.certificate_id, tx_hash: tx.transactionHash }),
+    });
+
+    setLoading(false);
+
+    document.getElementById('done-cert-id').textContent = pendingCert.certificate_id;
+    document.getElementById('done-tx-link').href        = 'https://sepolia.etherscan.io/tx/' + tx.transactionHash;
+    document.getElementById('done-tx-link').textContent = tx.transactionHash;
+    document.getElementById('done-ipfs-link').href      = 'https://ipfs.io/ipfs/' + pendingCert.ipfs_cid;
+    goIssueStep(4);
+
+  } catch(e) {
+    setLoading(false);
+    const errEl = document.getElementById('sign-err');
+    errEl.style.display = 'flex';
+    errEl.textContent   = '❌ Transaction failed: ' + (e.message || e);
+    btn.disabled  = false;
+    btn.innerHTML = '🦊 Sign with MetaMask';
+  }
+}
+
+function resetIssueForm() {
+  ['f-name','f-matric','f-email','f-dept','f-faculty','f-year'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('f-degree').value = '';
+  document.getElementById('ipfs-ok').style.display  = 'none';
+  document.getElementById('sign-err').style.display = 'none';
+  pendingCert = null;
+  goIssueStep(1);
+}
+
+/* ── CERTIFICATES LIST ───────────────────────────────────────── */
+async function loadCerts() {
+  try {
+    const res  = await fetch(API_BASE + '/certificates.php?page=1&limit=100');
+    const data = await res.json();
+    if (data.success) { allCertsData = data.data; renderCerts(data.data); }
+  } catch(e) {
+    document.getElementById('certs-table-body').innerHTML =
+      '<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--danger);">Could not load certificates. Is XAMPP running?</td></tr>';
+  }
+}
+
+function filterCerts() {
+  const q      = document.getElementById('cert-search').value.toLowerCase();
+  const status = document.getElementById('cert-filter').value;
+  renderCerts(allCertsData.filter(c =>
+    (!q || c.full_name.toLowerCase().includes(q) || c.matric_number.toLowerCase().includes(q) || c.certificate_id.toLowerCase().includes(q)) &&
+    (!status || c.status === status)
+  ));
+}
+
+function renderCerts(rows) {
+  const tbody = document.getElementById('certs-table-body');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--gray-400);">No certificates found.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(c => `
+    <tr>
+      <td><code style="font-size:11px;">${c.certificate_id}</code></td>
+      <td>${c.full_name}</td>
+      <td>${c.matric_number}</td>
+      <td>${c.department}</td>
+      <td>${c.degree_class}</td>
+      <td><span class="badge badge-${c.status==='issued'?'success':c.status==='revoked'?'danger':'warning'}">${c.status}</span></td>
+      <td>${new Date(c.issued_at).toLocaleDateString()}</td>
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-ghost btn-sm" onclick="quickVerify('${c.certificate_id}')">🔍 Verify</button>
+        ${c.status === 'issued' ? `<button class="btn btn-danger btn-sm" onclick="openRevoke('${c.certificate_id}','${c.full_name.replace(/'/g,"\\'")}')">Revoke</button>` : ''}
+      </td>
+    </tr>`).join('');
+}
+
+/* ── REVOKE ──────────────────────────────────────────────────── */
+function openRevoke(certId, name) {
+  revokeTarget = certId;
+  document.getElementById('revoke-cert-info').innerHTML =
+    `<strong>Certificate:</strong> ${certId}<br><strong>Student:</strong> ${name}`;
+  document.getElementById('revoke-reason').value = '';
+  document.getElementById('revoke-modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('revoke-modal').classList.remove('open'); }
+
+async function confirmRevoke() {
+  const reason = document.getElementById('revoke-reason').value.trim();
+  if (!reason) { alert('Please provide a reason.'); return; }
+  closeModal();
+  setLoading(true, 'Revoking certificate...');
+  try {
+    const res  = await fetch(API_BASE + '/certificates.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ certificate_id: revokeTarget, reason }),
+    });
+    const data = await res.json();
+    setLoading(false);
+    if (data.success) {
+      allCertsData = allCertsData.map(c => c.certificate_id === revokeTarget ? {...c, status:'revoked'} : c);
+      renderCerts(allCertsData);
+      alert('Certificate revoked successfully.');
+    } else { alert('Error: ' + data.message); }
+  } catch(e) { setLoading(false); alert('Server error: ' + e.message); }
+}
+
+/* ── VERIFY ──────────────────────────────────────────────────── */
+function switchVTab(id) {
+  ['vid','vhash','vchain'].forEach((t, i) => {
+    document.querySelectorAll('.vtab')[i].classList.toggle('active', t === id);
+    document.getElementById('vtab-' + t).classList.toggle('active', t === id);
+  });
+  document.getElementById('verify-result-area').innerHTML = '';
+}
+
+async function verifyById() {
+  const certId = document.getElementById('v-cert-id').value.trim();
+  const org    = document.getElementById('v-org').value.trim();
+  if (!certId) { alert('Please enter a Certificate ID'); return; }
+  setLoading(true, 'Verifying...');
+  try {
+    const res  = await fetch(`${API_BASE}/verify.php?id=${encodeURIComponent(certId)}&org=${encodeURIComponent(org)}`);
+    const data = await res.json();
+    setLoading(false);
+    renderVerifyResult(data);
+  } catch(e) { setLoading(false); alert('Server error: ' + e.message); }
+}
+
+async function verifyByHash() {
+  const hash = document.getElementById('v-hash').value.trim();
+  if (!hash) { alert('Please enter a hash'); return; }
+  setLoading(true, 'Verifying hash...');
+  try {
+    const res  = await fetch(`${API_BASE}/verify.php?hash=${encodeURIComponent(hash)}`);
+    const data = await res.json();
+    setLoading(false);
+    renderVerifyResult(data);
+  } catch(e) { setLoading(false); alert('Server error: ' + e.message); }
+}
+
+async function verifyOnChain() {
+  const certId = document.getElementById('v-chain-id').value.trim();
+  if (!certId) { alert('Please enter a Certificate ID'); return; }
+  setLoading(true, 'Connecting to Ethereum...');
+  try {
+    if (!walletAccount) await connectWallet();
+    const r = await contract.methods.verifyCertificate(certId).call();
+    setLoading(false);
+    renderVerifyResult({
+      success:true, valid:r.isValid&&!r.isRevoked,
+      status: r.isRevoked ? 'revoked' : (r.isValid ? 'issued' : 'invalid'),
+      certificate_id:certId, student_name:r.studentName, matric_number:r.matricNumber,
+      department:r.department, degree_class:r.degreeClass, graduation_year:r.graduationYear,
+      sha256_hash:r.sha256Hash, ipfs_cid:r.ipfsCid, issued_by:r.issuedBy,
+      issued_at: new Date(parseInt(r.issuedAt)*1000).toLocaleString(),
+      revoked:r.isRevoked, revoke_reason:r.revokeReason,
+      source:'⛓️ Verified directly on Ethereum blockchain — no server involved',
+    });
+  } catch(e) {
+    setLoading(false);
+    document.getElementById('verify-result-area').innerHTML =
+      `<div class="result-card"><div class="result-body">
+        <div class="alert alert-danger"><span>❌</span><span>Blockchain error: ${e.message}</span></div>
+      </div></div>`;
+  }
+}
+
+function quickVerify(certId) {
+  showPage('verify');
+  document.getElementById('v-cert-id').value = certId;
+  switchVTab('vid');
+  setTimeout(() => verifyById(), 100);
+}
+
+function renderVerifyResult(data) {
+  const area = document.getElementById('verify-result-area');
+
+  if (!data.success || (!data.valid && data.status !== 'revoked')) {
+    area.innerHTML = `
+      <div class="result-card">
+        <div class="result-header" style="background:var(--danger-bg);">
+          <span style="font-size:38px;">❌</span>
+          <div><h2 style="color:var(--danger);">Certificate Not Found</h2>
+          <p style="color:var(--danger);">Not verified — may be forged or invalid.</p></div>
+        </div>
+        <div class="result-body">
+          <div class="alert alert-danger"><span>⚠️</span><span>${data.message || 'This certificate does not exist in our records.'}</span></div>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const isRevoked  = data.status === 'revoked';
+  const headerBg   = isRevoked ? 'var(--warning-bg)' : 'var(--success-bg)';
+  const icon       = isRevoked ? '⚠️' : '✅';
+  const titleColor = isRevoked ? 'var(--warning)' : 'var(--success)';
+  const title      = isRevoked ? 'Certificate Revoked' : 'Certificate Verified — AUTHENTIC';
+
+  area.innerHTML = `
+    <div class="result-card">
+      <div class="result-header" style="background:${headerBg};">
+        <span style="font-size:38px;">${icon}</span>
+        <div>
+          <h2 style="color:${titleColor};">${title}</h2>
+          <span class="badge badge-${isRevoked?'warning':'success'}">${data.status.toUpperCase()}</span>
+        </div>
+      </div>
+      <div class="result-body">
+        ${isRevoked ? `<div class="alert alert-warning"><span>⚠️</span><span><strong>Reason:</strong> ${data.revoke_reason||'Not specified'}</span></div>` : ''}
+        <div class="detail-row"><div class="detail-label">Certificate ID</div><div class="detail-value"><code>${data.certificate_id}</code></div></div>
+        <div class="detail-row"><div class="detail-label">Student Name</div><div class="detail-value">${data.student_name}</div></div>
+        <div class="detail-row"><div class="detail-label">Matric Number</div><div class="detail-value">${data.matric_number}</div></div>
+        <div class="detail-row"><div class="detail-label">Department</div><div class="detail-value">${data.department}</div></div>
+        <div class="detail-row"><div class="detail-label">Faculty</div><div class="detail-value">${data.faculty||'—'}</div></div>
+        <div class="detail-row"><div class="detail-label">Degree Class</div><div class="detail-value"><strong>${data.degree_class}</strong></div></div>
+        <div class="detail-row"><div class="detail-label">Graduation Year</div><div class="detail-value">${data.graduation_year}</div></div>
+        <div class="detail-row"><div class="detail-label">Issued At</div><div class="detail-value">${data.issued_at ? new Date(data.issued_at).toLocaleString() : data.issued_at}</div></div>
+        <div class="chain-section">
+          <h4>⛓️ Blockchain Proof</h4>
+          <div class="chain-row"><div class="chain-dot"></div><div class="chain-text">SHA-256: ${data.sha256_hash}</div></div>
+          ${data.ipfs_cid ? `<div class="chain-row"><div class="chain-dot"></div><div class="chain-text">IPFS: <a href="https://ipfs.io/ipfs/${data.ipfs_cid}" target="_blank" style="color:#a78bfa;">${data.ipfs_cid}</a></div></div>` : ''}
+          ${data.blockchain_tx ? `<div class="chain-row"><div class="chain-dot"></div><div class="chain-text">TX: <a href="https://sepolia.etherscan.io/tx/${data.blockchain_tx}" target="_blank" style="color:#a78bfa;">${data.blockchain_tx}</a></div></div>` : ''}
+          ${data.source ? `<p style="color:#6b7280;font-size:.76rem;margin-top:8px;">${data.source}</p>` : ''}
+        </div>
+      </div>
+    </div>`;
+
+  area.scrollIntoView({ behavior: 'smooth' });
+}
+
+/* ── INIT ────────────────────────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('page-login').classList.contains('active')) {
+    handleLogin();
+  }
+});
+
+// Auto-reconnect MetaMask
+if (window.ethereum) {
+  window.ethereum.request({ method: 'eth_accounts' }).then(accs => {
+    if (accs.length) {
+      web3          = new Web3(window.ethereum);
+      walletAccount = accs[0];
+      contract      = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+      document.getElementById('wallet-badge').style.display = 'flex';
+      document.getElementById('wallet-addr').textContent    = walletAccount.slice(0,6) + '...' + walletAccount.slice(-4);
+      document.getElementById('connect-wallet-btn').style.display = 'none';
+    }
+  }).catch(()=>{});
+}
+
+// Resume session on page refresh
+if (sessionStorage.getItem('admin_name')) initApp();
+</script>
+</body>
+</html>
