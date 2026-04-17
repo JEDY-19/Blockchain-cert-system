@@ -221,7 +221,7 @@ tbody tr:hover{background:var(--gray-50);}
   <div class="login-card">
     <div class="login-logo">
       <div class="logo-circle">🎓</div>
-      <h1 style="font-size:1.35rem;">Certificate System</h1>
+      <h1 style="font-size:1.35rem;">Jedify</h1>
       <p style="font-size:.85rem;">Landmark University, Omu-Aran</p>
     </div>
 
@@ -666,6 +666,14 @@ let allCertsData  = [];
 let revokeTarget  = null;
 
 /* ── NAVIGATION ──────────────────────────────────────────────── */
+function resetLoginButtonState() {
+  const btn = document.getElementById('login-btn');
+  if (btn) {
+    btn.disabled  = false;
+    btn.innerHTML = 'Sign In to Dashboard';
+  }
+}
+
 function showPage(name) {
   const loginPage = document.getElementById('page-login');
   const appShell  = document.getElementById('app-shell');
@@ -674,6 +682,7 @@ function showPage(name) {
     loginPage.classList.add('active');
     loginPage.style.display = '';   // let CSS handle it
     appShell.style.display  = 'none';
+    resetLoginButtonState();
     return;
   }
 
@@ -727,7 +736,11 @@ async function handleLogin() {
     if (data.success) {
       sessionStorage.setItem('admin_name', data.name);
       sessionStorage.setItem('admin_role', data.role);
-      await initApp();
+      try {
+        await initApp();
+      } finally {
+        resetLoginButtonState();
+      }
     } else {
       showLoginError(data.message || 'Login failed. Check your credentials.');
       btn.disabled = false; btn.innerHTML = 'Sign In to Dashboard';
