@@ -11,6 +11,8 @@ header('Access-Control-Allow-Headers: Content-Type');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 
 require_once __DIR__ . '/../config/db.php';
+require_once __DIR__ . '/../includes/chain_verify_bridge.php';
+require_once __DIR__ . '/../includes/keccak_util.php';
 
 $certId = trim($_GET['id']    ?? '');
 $hash   = trim($_GET['hash']  ?? '');
@@ -65,7 +67,62 @@ $db->prepare("
     $cert['status'] === 'revoked' ? 'revoked' : 'valid',
 ]);
 
-echo json_encode([
+$chainAudit = null;
+if (!empty($cert['blockchain_tx_hash']) && isContractConfigured()) {
+    $remote = chainVerifyCertificateRemote($cert['certificate_id']);
+    if ($remote === null) {
+        $chainAudit = [
+            'checked' => false,
+            'note'    => 'On-chain cross-check skipped (run npm install && npx hardhat compile in project root, ensure Node is available).',
+        ];
+    } elseif (empty($remote['ok'])) {
+        $chainAudit = [
+            'checked' => true,
+            'consistent' => false,
+            'error'   => $remote['error'] ?? 'Contract call failed',
+        ];
+    } else {
+        $norm = static function (?string $h): string {
+            if ($h === null || $h === '') {
+                return '';
+            }
+            return strtolower(preg_replace('/^0x/i', '', $h));
+        };
+        $dbHash = $norm($cert['sha256_hash']);
+        $chainH = $norm($remote['sha256Hash'] ?? '');
+        $hashOk = $dbHash !== '' && $chainH !== '' && hash_equals($dbHash, $chainH);
+        $chRev  = !empty($remote['isRevoked']);
+        $statusOk = $cert['status'] === 'issued'
+            ? (!empty($remote['isValid']) && !$chRev)
+            : $chRev;
+
+        $chainNH = $norm($remote['studentNameHash'] ?? '');
+        $chainMH = $norm($remote['matricNumberHash'] ?? '');
+        $dbNameH = keccak256_utf8((string) $cert['full_name']);
+        $dbMatH  = keccak256_utf8((string) $cert['matric_number']);
+        $piiOk   = true;
+        if ($chainNH !== '' || $chainMH !== '') {
+            if ($dbNameH && $dbMatH) {
+                $piiOk = hash_equals($norm($dbNameH), $chainNH) && hash_equals($norm($dbMatH), $chainMH);
+            } else {
+                $piiOk = false;
+            }
+        }
+
+        $chainAudit = [
+            'checked'                   => true,
+            'consistent'                => $hashOk && $statusOk && $piiOk,
+            'hash_matches_record'       => $hashOk,
+            'revocation_matches_record' => $statusOk,
+            'pii_commitments_match'     => $piiOk,
+        ];
+    }
+}
+
+$cid = $cert['ipfs_cid'] ?? '';
+$ipfsUrl = ($cid !== '' && $cid !== 'ipfs-unavailable') ? (IPFS_GATEWAY . $cid) : null;
+
+$payload = [
     'success'         => true,
     'valid'           => $cert['status'] === 'issued',
     'status'          => $cert['status'],
@@ -78,11 +135,16 @@ echo json_encode([
     'graduation_year' => $cert['graduation_year'],
     'sha256_hash'     => $cert['sha256_hash'],
     'ipfs_cid'        => $cert['ipfs_cid'],
-    'ipfs_url'        => IPFS_GATEWAY . $cert['ipfs_cid'],
+    'ipfs_url'        => $ipfsUrl,
     'blockchain_tx'   => $cert['blockchain_tx_hash'],
-    'etherscan_url'   => 'https://sepolia.etherscan.io/tx/' . $cert['blockchain_tx_hash'],
+    'etherscan_url'   => $cert['blockchain_tx_hash']
+        ? 'https://sepolia.etherscan.io/tx/' . $cert['blockchain_tx_hash']
+        : null,
     'issued_by'       => $cert['issued_by_name'],
     'issued_at'       => $cert['issued_at'],
     'revoked'         => $cert['status'] === 'revoked',
     'revoke_reason'   => $cert['revoke_reason'] ?? null,
-]);
+    'chain_audit'     => $chainAudit,
+];
+
+echo json_encode($payload);

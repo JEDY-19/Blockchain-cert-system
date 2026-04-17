@@ -27,6 +27,8 @@ function loginAdmin(string $email, string $password): array {
         return ['success' => false, 'message' => 'Invalid email or password.'];
     }
 
+    unset($_SESSION['student_user_id'], $_SESSION['student_name'], $_SESSION['student_matric']);
+
     $_SESSION['admin_id']   = $admin['id'];
     $_SESSION['admin_name'] = $admin['full_name'];
     $_SESSION['admin_role'] = $admin['role'];

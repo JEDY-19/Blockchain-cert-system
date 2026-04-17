@@ -4,11 +4,11 @@
 // ============================================================
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../includes/cors.php';
+cors_handle_options_preflight('POST, OPTIONS');
+cors_apply_credentials_if_allowed();
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/ipfs.php';
@@ -33,11 +33,11 @@ foreach ($required as $field) {
 
 $db = getDB();
 
-// Prevent duplicate certificates
+// Prevent duplicate certificates (pending or issued — revoked allows re-issue)
 $check = $db->prepare("
     SELECT c.certificate_id FROM certificates c
     JOIN students s ON c.student_id = s.id
-    WHERE s.matric_number = ? AND c.status = 'issued'
+    WHERE s.matric_number = ? AND c.status IN ('issued', 'pending')
 ");
 $check->execute([$input['matric_number']]);
 if ($check->fetch()) {
@@ -63,9 +63,11 @@ try {
         (int) $input['graduation_year'],
     ]);
 
-    $studentId = $db->lastInsertId();
+    $sidStmt = $db->prepare('SELECT id FROM students WHERE matric_number = ? LIMIT 1');
+    $sidStmt->execute([$input['matric_number']]);
+    $studentId = $sidStmt->fetchColumn();
     if (!$studentId) {
-        $studentId = $db->prepare("SELECT id FROM students WHERE matric_number = ?")->execute([$input['matric_number']]) ? $db->query("SELECT id FROM students WHERE matric_number = '" . $input['matric_number'] . "'")->fetchColumn() : null;
+        throw new RuntimeException('Could not resolve student record after save.');
     }
 
     // Generate certificate ID and hash
@@ -98,7 +100,7 @@ try {
     $ipfsResult = ipfsUpload($filePath);
     $ipfsCid    = $ipfsResult['success'] ? $ipfsResult['cid'] : 'ipfs-unavailable';
 
-    $verifyUrl = APP_URL . '/index.html?verify=' . $certId;
+    $verifyUrl = appPublicUrl() . '/index.html?verify=' . $certId;
 
     // Save to database
     $db->prepare("

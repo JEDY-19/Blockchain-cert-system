@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS certificates (
     ipfs_cid            VARCHAR(100),
     blockchain_tx_hash  VARCHAR(100),
     blockchain_address  VARCHAR(50),
+    blockchain_revoke_tx_hash VARCHAR(100) NULL,
     qr_code_data        TEXT,
     status              ENUM('pending','issued','revoked') DEFAULT 'pending',
     issued_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -64,12 +65,28 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+-- settings seed defaults are for LOCAL DEVELOPMENT ONLY.
+-- Production: replace app_public_url with your real HTTPS public origin (verification / QR links).
+-- Production: replace sepolia_rpc_url with a dedicated RPC provider (avoid public endpoints for reliability/privacy).
 INSERT IGNORE INTO settings (setting_key, setting_value) VALUES
 ('university_name',    'Landmark University'),
 ('university_address', 'Omu-Aran, Kwara State, Nigeria'),
 ('contract_address',   ''),
+('sepolia_rpc_url',    'https://ethereum-sepolia-rpc.publicnode.com'),
+('app_public_url',     'https://localhost/Blockchain-cert-system'),
 ('ipfs_gateway',       'https://ipfs.io/ipfs/'),
 ('certificate_prefix', 'LMU');
+
+-- ── Existing databases: run the following if upgrading ───────────────
+-- ALTER TABLE certificates ADD COLUMN blockchain_revoke_tx_hash VARCHAR(100) NULL AFTER blockchain_address;
+
+CREATE TABLE IF NOT EXISTS student_users (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    student_id  INT NOT NULL UNIQUE,
+    password    VARCHAR(255) NOT NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+);
 
 -- Default login: admin@lmu.edu.ng / Admin@1234
 INSERT IGNORE INTO admins (full_name, email, password, role) VALUES

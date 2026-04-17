@@ -4,13 +4,15 @@
 // ============================================================
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../includes/cors.php';
+cors_handle_options_preflight('GET, POST, OPTIONS');
+cors_apply_credentials_if_allowed();
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
-
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/eth_rpc.php';
+
 requireLogin();
 
 $db     = getDB();
@@ -28,11 +30,11 @@ if ($method === 'GET') {
     $params = [];
 
     if ($search) {
-        $where[]  = "(s.full_name LIKE ? OR s.matric_number LIKE ? OR c.certificate_id LIKE ?)";
+        $where[]  = '(s.full_name LIKE ? OR s.matric_number LIKE ? OR c.certificate_id LIKE ?)';
         $params   = array_merge($params, ["%$search%", "%$search%", "%$search%"]);
     }
     if ($status) {
-        $where[]  = "c.status = ?";
+        $where[]  = 'c.status = ?';
         $params[] = $status;
     }
 
@@ -44,7 +46,7 @@ if ($method === 'GET') {
 
     $dataStmt = $db->prepare("
         SELECT c.certificate_id, c.status, c.sha256_hash, c.ipfs_cid,
-               c.blockchain_tx_hash, c.issued_at, c.revoked_at, c.revoke_reason,
+               c.blockchain_tx_hash, c.blockchain_revoke_tx_hash, c.issued_at, c.revoked_at, c.revoke_reason,
                s.full_name, s.matric_number, s.department, s.degree_class,
                s.graduation_year, a.full_name AS issued_by
         FROM certificates c
@@ -68,21 +70,46 @@ if ($method === 'GET') {
 
 // ── POST: revoke certificate ─────────────────────────────────
 if ($method === 'POST') {
-    $input  = json_decode(file_get_contents('php://input'), true);
-    $certId = trim($input['certificate_id'] ?? '');
-    $reason = trim($input['reason']         ?? 'Revoked by administrator');
+    $input      = json_decode(file_get_contents('php://input'), true);
+    $certId     = trim($input['certificate_id'] ?? '');
+    $reason     = trim($input['reason']         ?? 'Revoked by administrator');
+    $revokeTx   = trim($input['revoke_tx_hash'] ?? '');
 
     if (empty($certId)) {
         echo json_encode(['success' => false, 'message' => 'certificate_id is required.']);
         exit;
     }
 
+    if (isContractConfigured()) {
+        if ($revokeTx === '') {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Smart contract is configured: submit a blockchain revoke transaction first, then send its tx hash.',
+            ]);
+            exit;
+        }
+        try {
+            assertSuccessfulContractTx($revokeTx, contractAddress());
+        } catch (Throwable $e) {
+            echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+            exit;
+        }
+    }
+
+    $revokeTxStored = null;
+    if (isContractConfigured()) {
+        $revokeTxStored = $revokeTx;
+    } elseif ($revokeTx !== '') {
+        $revokeTxStored = $revokeTx;
+    }
+
     $stmt = $db->prepare("
         UPDATE certificates
-        SET status = 'revoked', revoked_at = NOW(), revoke_reason = ?
+        SET status = 'revoked', revoked_at = NOW(), revoke_reason = ?,
+            blockchain_revoke_tx_hash = ?
         WHERE certificate_id = ? AND status = 'issued'
     ");
-    $stmt->execute([$reason, $certId]);
+    $stmt->execute([$reason, $revokeTxStored, $certId]);
 
     if ($stmt->rowCount() === 0) {
         echo json_encode(['success' => false, 'message' => 'Certificate not found or already revoked.']);

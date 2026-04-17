@@ -254,10 +254,14 @@ tbody tr:hover{background:var(--gray-50);}
     <div class="divider">or</div>
 
     <button class="metamask-btn" onclick="loginWithMetaMask()">
-      <span style="font-size:20px;">🦊</span> Connect MetaMask
+      <span style="font-size:20px;">🦊</span> Connect MetaMask (after email login)
     </button>
 
-    <p style="text-align:center;margin-top:20px;font-size:.82rem;color:var(--gray-400);">
+    <p style="text-align:center;margin-top:18px;font-size:.82rem;">
+      <a href="student.html" style="color:var(--primary);font-weight:500;">Student portal →</a>
+    </p>
+
+    <p style="text-align:center;margin-top:12px;font-size:.82rem;color:var(--gray-400);">
       Employer?
       <span style="color:var(--primary);cursor:pointer;font-weight:500;" onclick="showPage('verify')">
         Verify a Certificate →
@@ -321,7 +325,7 @@ tbody tr:hover{background:var(--gray-50);}
         <div class="stat-grid">
           <div class="stat-card">
             <div style="display:flex;align-items:center;justify-content:space-between;">
-              <div class="stat-label">Total Issued</div>
+              <div class="stat-label">All certificates</div>
               <div class="stat-icon" style="background:#e0e7ff;">📜</div>
             </div>
             <div class="stat-value" id="dash-total">—</div>
@@ -455,8 +459,8 @@ tbody tr:hover{background:var(--gray-50);}
           <p style="margin-bottom:16px;">Confirm details before uploading to IPFS and signing on blockchain.</p>
           <div class="cert-preview" id="cert-preview-box"></div>
           <div style="margin-top:14px;">
-            <div class="form-label" style="margin-bottom:6px;">SHA-256 Hash (computed in browser)</div>
-            <div class="hash-box" id="hash-display">Computing...</div>
+            <div class="form-label" style="margin-bottom:6px;">SHA-256 (canonical)</div>
+            <div class="hash-box" id="hash-display">Assigned after upload — includes your Certificate ID and the same fields the server and blockchain use.</div>
           </div>
           <div class="alert alert-info" style="margin-top:14px;">
             <span>ℹ️</span>
@@ -615,7 +619,7 @@ tbody tr:hover{background:var(--gray-50);}
     </div>
     <div class="alert alert-warning">
       <span>⚠️</span>
-      <span>This action is <strong>permanent</strong>. The revocation will be recorded on the blockchain.</span>
+      <span>This action is <strong>permanent</strong>. When the registry contract is configured, you will sign a <strong>MetaMask</strong> revoke transaction before the database is updated.</span>
     </div>
     <div style="display:flex;gap:12px;justify-content:flex-end;">
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
@@ -634,17 +638,21 @@ tbody tr:hover{background:var(--gray-50);}
 'use strict';
 
 /* ── CONFIG ──────────────────────────────────────────────────── */
-// This path works when index.html is at: htdocs/cert-system/index.html
-// and backend folder is at: htdocs/cert-system/backend/
+// Serve from folder: htdocs/Blockchain-cert-system/ (see backend/config db app_public_url)
 const API_BASE = 'backend/api';
 
-const CONTRACT_ADDRESS = '0xYourDeployedContractAddressHere'; // ← paste after Remix deploy
+let publicConfig = {
+  contract_address: '',
+  contract_configured: false,
+  sepolia_rpc_url: 'https://ethereum-sepolia-rpc.publicnode.com',
+  app_public_url: '',
+};
 
 const CONTRACT_ABI = [
   {inputs:[],stateMutability:"nonpayable",type:"constructor"},
-  {inputs:[{name:"_certId",type:"string"},{name:"_studentName",type:"string"},{name:"_matricNumber",type:"string"},{name:"_department",type:"string"},{name:"_degreeClass",type:"string"},{name:"_graduationYear",type:"uint16"},{name:"_sha256Hash",type:"bytes32"},{name:"_ipfsCid",type:"string"}],name:"issueCertificate",outputs:[],stateMutability:"nonpayable",type:"function"},
+  {inputs:[{name:"_certId",type:"string"},{name:"_studentNameHash",type:"bytes32"},{name:"_matricNumberHash",type:"bytes32"},{name:"_department",type:"string"},{name:"_degreeClass",type:"string"},{name:"_graduationYear",type:"uint16"},{name:"_sha256Hash",type:"bytes32"},{name:"_ipfsCid",type:"string"}],name:"issueCertificate",outputs:[],stateMutability:"nonpayable",type:"function"},
   {inputs:[{name:"_certId",type:"string"},{name:"_reason",type:"string"}],name:"revokeCertificate",outputs:[],stateMutability:"nonpayable",type:"function"},
-  {inputs:[{name:"_certId",type:"string"}],name:"verifyCertificate",outputs:[{name:"isValid",type:"bool"},{name:"studentName",type:"string"},{name:"matricNumber",type:"string"},{name:"department",type:"string"},{name:"degreeClass",type:"string"},{name:"graduationYear",type:"uint16"},{name:"sha256Hash",type:"bytes32"},{name:"ipfsCid",type:"string"},{name:"issuedBy",type:"address"},{name:"issuedAt",type:"uint256"},{name:"isRevoked",type:"bool"},{name:"revokeReason",type:"string"}],stateMutability:"view",type:"function"},
+  {inputs:[{name:"_certId",type:"string"}],name:"verifyCertificate",outputs:[{name:"isValid",type:"bool"},{name:"studentNameHash",type:"bytes32"},{name:"matricNumberHash",type:"bytes32"},{name:"department",type:"string"},{name:"degreeClass",type:"string"},{name:"graduationYear",type:"uint16"},{name:"sha256Hash",type:"bytes32"},{name:"ipfsCid",type:"string"},{name:"issuedBy",type:"address"},{name:"issuedAt",type:"uint256"},{name:"isRevoked",type:"bool"},{name:"revokeReason",type:"string"}],stateMutability:"view",type:"function"},
   {inputs:[{name:"_hash",type:"bytes32"}],name:"verifyByHash",outputs:[{name:"exists",type:"bool"},{name:"certId",type:"string"}],stateMutability:"view",type:"function"},
   {inputs:[],name:"getStats",outputs:[{name:"issued",type:"uint256"},{name:"revoked",type:"uint256"}],stateMutability:"view",type:"function"}
 ];
@@ -682,7 +690,14 @@ function showPage(name) {
 
   if (name === 'dashboard') loadDashboard();
   if (name === 'certs')     loadCerts();
-  if (name === 'verify')    document.getElementById('verify-result-area').innerHTML = '';
+  if (name === 'verify') {
+    document.getElementById('verify-result-area').innerHTML = '';
+    loadPublicConfig().then(() => {
+      if (web3 && walletAccount && publicConfig.contract_address) {
+        contract = new web3.eth.Contract(CONTRACT_ABI, publicConfig.contract_address);
+      }
+    });
+  }
 }
 
 /* ── AUTH ────────────────────────────────────────────────────── */
@@ -704,6 +719,7 @@ async function handleLogin() {
     const res  = await fetch(API_BASE + '/login.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify({ email, password }),
     });
     const data = await res.json();
@@ -711,7 +727,7 @@ async function handleLogin() {
     if (data.success) {
       sessionStorage.setItem('admin_name', data.name);
       sessionStorage.setItem('admin_role', data.role);
-      initApp();
+      await initApp();
     } else {
       showLoginError(data.message || 'Login failed. Check your credentials.');
       btn.disabled = false; btn.innerHTML = 'Sign In to Dashboard';
@@ -739,18 +755,24 @@ function showLoginToast(msg, type) {
 
 async function loginWithMetaMask() {
   try {
-    if (!window.ethereum) { showLoginError('MetaMask not detected. Install it from metamask.io'); return; }
-    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-    if (accounts.length) {
-      sessionStorage.setItem('admin_name', 'MetaMask Admin');
-      sessionStorage.setItem('admin_role', 'admin');
-      walletAccount = accounts[0];
-      initApp();
+    const s = await fetch(API_BASE + '/session.php', { credentials: 'same-origin' });
+    const j = await s.json();
+    if (!j.logged_in) {
+      showLoginError('Sign in with email and password first. MetaMask is only used to sign issue/revoke transactions.');
+      return;
     }
+    if (!window.ethereum) { showLoginError('MetaMask not detected. Install it from metamask.io'); return; }
+    await connectWallet();
+    sessionStorage.setItem('admin_name', j.admin_name || 'Admin');
+    sessionStorage.setItem('admin_role', j.admin_role || 'admin');
+    await initApp();
   } catch(e) { showLoginError('MetaMask error: ' + e.message); }
 }
 
-function handleLogout() {
+async function handleLogout() {
+  try {
+    await fetch(API_BASE + '/logout.php', { method: 'POST', credentials: 'same-origin' });
+  } catch (e) { /* ignore */ }
   sessionStorage.clear();
   showPage('login');
   // Show blue divider line and logout toast on the login card
@@ -758,19 +780,42 @@ function handleLogout() {
   setTimeout(() => { showLoginToast('LOGOUT SUCCESSFULLY', 't-info'); }, 100);
 }
 
-function initApp() {
+async function loadPublicConfig() {
+  try {
+    const res = await fetch(API_BASE + '/public_config.php', { credentials: 'same-origin' });
+    const j   = await res.json();
+    if (j.success) {
+      publicConfig = {
+        contract_address: j.contract_address || '',
+        contract_configured: !!j.contract_configured,
+        sepolia_rpc_url: j.sepolia_rpc_url || publicConfig.sepolia_rpc_url,
+        app_public_url: j.app_public_url || '',
+      };
+      if (web3 && walletAccount && publicConfig.contract_address) {
+        contract = new web3.eth.Contract(CONTRACT_ABI, publicConfig.contract_address);
+      }
+    }
+  } catch (e) {
+    console.warn('public_config', e);
+  }
+}
+
+function contractAddr() {
+  return publicConfig.contract_address || '';
+}
+
+async function initApp() {
+  await loadPublicConfig();
+
   document.getElementById('admin-name-display').textContent =
     sessionStorage.getItem('admin_name') || 'Admin';
 
-  // Hide login page (remove class + inline style)
   const loginPage = document.getElementById('page-login');
   loginPage.classList.remove('active');
   loginPage.style.display = 'none';
 
-  // Show the main app and open dashboard
   showPage('dashboard');
 
-  // Show login success toast briefly at top of page
   setTimeout(() => { showLoginToast('LOGIN SUCCESSFULLY', 't-success'); }, 200);
 }
 
@@ -781,7 +826,8 @@ async function connectWallet() {
     web3          = new Web3(window.ethereum);
     const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
     walletAccount  = accounts[0];
-    contract       = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+    const ca       = contractAddr();
+    contract       = ca ? new web3.eth.Contract(CONTRACT_ABI, ca) : null;
 
     document.getElementById('wallet-badge').style.display = 'flex';
     document.getElementById('wallet-addr').textContent    = walletAccount.slice(0,6) + '...' + walletAccount.slice(-4);
@@ -807,7 +853,7 @@ async function switchToSepolia() {
       await window.ethereum.request({ method:'wallet_addEthereumChain', params:[{
         chainId:'0xaa36a7', chainName:'Sepolia Testnet',
         nativeCurrency:{name:'SepoliaETH',symbol:'ETH',decimals:18},
-        rpcUrls:['https://sepolia.infura.io/v3/'],
+        rpcUrls:[publicConfig.sepolia_rpc_url || 'https://ethereum-sepolia-rpc.publicnode.com'],
         blockExplorerUrls:['https://sepolia.etherscan.io/'],
       }]});
     }
@@ -826,25 +872,50 @@ async function sha256(str) {
   return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');
 }
 
+/** Ethereum keccak256(utf8) — must match PHP scripts/keccakUtf8.js + CertificateRegistry */
+function keccakUtf8Str(str) {
+  if (!web3) throw new Error('Web3 not initialized');
+  const enc = new TextEncoder().encode(str);
+  let hex = '0x';
+  for (const b of enc) hex += b.toString(16).padStart(2, '0');
+  return web3.utils.keccak256(hex);
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /* ── DASHBOARD ───────────────────────────────────────────────── */
 async function loadDashboard() {
   try {
-    const res  = await fetch(API_BASE + '/certificates.php?page=1&limit=8');
-    const data = await res.json();
-    if (data.success) renderDashboard(data);
+    const [dashRes, certRes] = await Promise.all([
+      fetch(API_BASE + '/dashboard.php', { credentials: 'same-origin' }),
+      fetch(API_BASE + '/certificates.php?page=1&limit=8', { credentials: 'same-origin' }),
+    ]);
+    const dash = await dashRes.json();
+    const data = await certRes.json();
+    if (data.success) renderDashboard(data, dash);
   } catch(e) {
     document.getElementById('dash-table-body').innerHTML =
       '<tr><td colspan="6" style="text-align:center;padding:28px;color:var(--danger);">Could not load data. Is XAMPP running?</td></tr>';
   }
 }
 
-function renderDashboard(data) {
-  const rows    = data.data || [];
-  const revoked = rows.filter(r => r.status === 'revoked').length;
+function renderDashboard(data, dash) {
+  const rows = data.data || [];
 
-  document.getElementById('dash-total').textContent    = data.total || 0;
-  document.getElementById('dash-revoked').textContent  = revoked;
-  document.getElementById('dash-verified').textContent = Math.floor(Math.random() * 20) + 1;
+  document.getElementById('dash-total').textContent =
+    dash && dash.success && dash.total_certificates != null ? String(dash.total_certificates) : (data.total || 0);
+  document.getElementById('dash-revoked').textContent =
+    dash && dash.success && dash.total_revoked != null ? String(dash.total_revoked) : rows.filter(r => r.status === 'revoked').length;
+  document.getElementById('dash-verified').textContent =
+    dash && dash.success ? String(dash.verified_today ?? 0) : '—';
 
   const tbody = document.getElementById('dash-table-body');
   if (!rows.length) {
@@ -866,7 +937,14 @@ function renderDashboard(data) {
 }
 
 async function loadChainStats() {
-  if (!contract) { await connectWallet(); if (!contract) return; }
+  if (!publicConfig.contract_configured || !contractAddr()) {
+    alert('Deploy CertificateRegistry, set CONTRACT_ADDRESS in .env or MySQL settings.contract_address, then reload.');
+    return;
+  }
+  if (!window.ethereum) { alert('MetaMask required'); return; }
+  if (!web3) web3 = new Web3(window.ethereum);
+  if (!walletAccount) await connectWallet();
+  contract = new web3.eth.Contract(CONTRACT_ABI, contractAddr());
   try {
     const s = await contract.methods.getStats().call();
     document.getElementById('dash-onchain').textContent = s.issued?.toString() || '0';
@@ -909,7 +987,8 @@ async function goToReview() {
     <div class="cps">${name}</div>
     <div class="cpm">Matric: ${matric} &nbsp;|&nbsp; ${dept}<br>${deg} &nbsp;|&nbsp; Year: ${yr}</div>`;
 
-  document.getElementById('hash-display').textContent = await sha256(`CERT|${name}|${matric}|${dept}|${deg}|${yr}`);
+  document.getElementById('hash-display').textContent =
+    'Pending — the official SHA-256 will appear in step 3 after upload (server uses Certificate ID + these fields).';
 }
 
 async function submitToBackend() {
@@ -918,6 +997,7 @@ async function submitToBackend() {
     const res  = await fetch(API_BASE + '/issue_certificate.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify({
         full_name:       document.getElementById('f-name').value.trim(),
         matric_number:   document.getElementById('f-matric').value.trim(),
@@ -950,6 +1030,10 @@ async function submitToBackend() {
 
 async function signOnBlockchain() {
   if (!pendingCert) return;
+  if (!publicConfig.contract_configured || !contractAddr()) {
+    alert('Smart contract is not configured. Run npm run deploy:sepolia and set CONTRACT_ADDRESS.');
+    return;
+  }
   const btn = document.getElementById('sign-btn');
   btn.disabled  = true;
   btn.innerHTML = '<span class="spinner"></span> Waiting for MetaMask...';
@@ -957,6 +1041,7 @@ async function signOnBlockchain() {
   try {
     if (!walletAccount) await connectWallet();
     if (!walletAccount) throw new Error('Wallet not connected');
+    contract = new web3.eth.Contract(CONTRACT_ABI, contractAddr());
 
     await switchToSepolia();
 
@@ -964,8 +1049,11 @@ async function signOnBlockchain() {
       ? pendingCert.sha256_hash
       : '0x' + pendingCert.sha256_hash;
 
+    const nameHash   = keccakUtf8Str(pendingCert.student_name);
+    const matricHash = keccakUtf8Str(pendingCert.matric_number);
+
     const tx = await contract.methods.issueCertificate(
-      pendingCert.certificate_id, pendingCert.student_name, pendingCert.matric_number,
+      pendingCert.certificate_id, nameHash, matricHash,
       pendingCert.department, pendingCert.degree_class, parseInt(pendingCert.graduation_year),
       hashBytes, pendingCert.ipfs_cid || ''
     ).send({ from: walletAccount, gas: 500000 });
@@ -975,6 +1063,7 @@ async function signOnBlockchain() {
     await fetch(API_BASE + '/finalize_certificate.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
       body: JSON.stringify({ certificate_id: pendingCert.certificate_id, tx_hash: tx.transactionHash }),
     });
 
@@ -1008,7 +1097,7 @@ function resetIssueForm() {
 /* ── CERTIFICATES LIST ───────────────────────────────────────── */
 async function loadCerts() {
   try {
-    const res  = await fetch(API_BASE + '/certificates.php?page=1&limit=100');
+    const res  = await fetch(API_BASE + '/certificates.php?page=1&limit=100', { credentials: 'same-origin' });
     const data = await res.json();
     if (data.success) { allCertsData = data.data; renderCerts(data.data); }
   } catch(e) {
@@ -1065,19 +1154,35 @@ async function confirmRevoke() {
   closeModal();
   setLoading(true, 'Revoking certificate...');
   try {
+    let revokeTxHash = '';
+    if (publicConfig.contract_configured && contractAddr()) {
+      setLoading(true, 'Sign revoke transaction in MetaMask...');
+      if (!window.ethereum) throw new Error('MetaMask required for on-chain revoke');
+      if (!web3) web3 = new Web3(window.ethereum);
+      if (!walletAccount) await connectWallet();
+      if (!walletAccount) throw new Error('Wallet not connected');
+      contract = new web3.eth.Contract(CONTRACT_ABI, contractAddr());
+      await switchToSepolia();
+      const tx = await contract.methods.revokeCertificate(revokeTarget, reason)
+        .send({ from: walletAccount, gas: 400000 });
+      revokeTxHash = tx.transactionHash;
+    }
+
+    setLoading(true, 'Updating records...');
     const res  = await fetch(API_BASE + '/certificates.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ certificate_id: revokeTarget, reason }),
+      credentials: 'same-origin',
+      body: JSON.stringify({ certificate_id: revokeTarget, reason, revoke_tx_hash: revokeTxHash }),
     });
     const data = await res.json();
     setLoading(false);
     if (data.success) {
       allCertsData = allCertsData.map(c => c.certificate_id === revokeTarget ? {...c, status:'revoked'} : c);
       renderCerts(allCertsData);
-      alert('Certificate revoked successfully.');
+      alert('Certificate revoked successfully.' + (revokeTxHash ? '\n\nTX: ' + revokeTxHash : ''));
     } else { alert('Error: ' + data.message); }
-  } catch(e) { setLoading(false); alert('Server error: ' + e.message); }
+  } catch(e) { setLoading(false); alert('Error: ' + (e.message || e)); }
 }
 
 /* ── VERIFY ──────────────────────────────────────────────────── */
@@ -1119,15 +1224,29 @@ async function verifyOnChain() {
   if (!certId) { alert('Please enter a Certificate ID'); return; }
   setLoading(true, 'Connecting to Ethereum...');
   try {
+    await loadPublicConfig();
+    if (!contractAddr()) {
+      setLoading(false);
+      alert('Set CONTRACT_ADDRESS (deploy contract) before live chain verification.');
+      return;
+    }
+    if (!window.ethereum) throw new Error('MetaMask required');
+    if (!web3) web3 = new Web3(window.ethereum);
     if (!walletAccount) await connectWallet();
+    contract = new web3.eth.Contract(CONTRACT_ABI, contractAddr());
     const r = await contract.methods.verifyCertificate(certId).call();
     setLoading(false);
+    const hashStr = r.sha256Hash != null ? String(r.sha256Hash) : '';
+    const nh = r.studentNameHash != null ? String(r.studentNameHash) : '';
+    const mh = r.matricNumberHash != null ? String(r.matricNumberHash) : '';
     renderVerifyResult({
       success:true, valid:r.isValid&&!r.isRevoked,
       status: r.isRevoked ? 'revoked' : (r.isValid ? 'issued' : 'invalid'),
-      certificate_id:certId, student_name:r.studentName, matric_number:r.matricNumber,
+      certificate_id:certId,
+      student_name:'On-chain commitment (keccak256 UTF-8): ' + nh,
+      matric_number:'On-chain commitment (keccak256 UTF-8): ' + mh,
       department:r.department, degree_class:r.degreeClass, graduation_year:r.graduationYear,
-      sha256_hash:r.sha256Hash, ipfs_cid:r.ipfsCid, issued_by:r.issuedBy,
+      sha256_hash: hashStr, ipfs_cid:r.ipfsCid, issued_by:r.issuedBy,
       issued_at: new Date(parseInt(r.issuedAt)*1000).toLocaleString(),
       revoked:r.isRevoked, revoke_reason:r.revokeReason,
       source:'⛓️ Verified directly on Ethereum blockchain — no server involved',
@@ -1160,7 +1279,7 @@ function renderVerifyResult(data) {
           <p style="color:var(--danger);">Not verified — may be forged or invalid.</p></div>
         </div>
         <div class="result-body">
-          <div class="alert alert-danger"><span>⚠️</span><span>${data.message || 'This certificate does not exist in our records.'}</span></div>
+          <div class="alert alert-danger"><span>⚠️</span><span>${escapeHtml(data.message || 'This certificate does not exist in our records.')}</span></div>
         </div>
       </div>`;
     return;
@@ -1182,21 +1301,32 @@ function renderVerifyResult(data) {
         </div>
       </div>
       <div class="result-body">
-        ${isRevoked ? `<div class="alert alert-warning"><span>⚠️</span><span><strong>Reason:</strong> ${data.revoke_reason||'Not specified'}</span></div>` : ''}
-        <div class="detail-row"><div class="detail-label">Certificate ID</div><div class="detail-value"><code>${data.certificate_id}</code></div></div>
-        <div class="detail-row"><div class="detail-label">Student Name</div><div class="detail-value">${data.student_name}</div></div>
-        <div class="detail-row"><div class="detail-label">Matric Number</div><div class="detail-value">${data.matric_number}</div></div>
-        <div class="detail-row"><div class="detail-label">Department</div><div class="detail-value">${data.department}</div></div>
-        <div class="detail-row"><div class="detail-label">Faculty</div><div class="detail-value">${data.faculty||'—'}</div></div>
-        <div class="detail-row"><div class="detail-label">Degree Class</div><div class="detail-value"><strong>${data.degree_class}</strong></div></div>
-        <div class="detail-row"><div class="detail-label">Graduation Year</div><div class="detail-value">${data.graduation_year}</div></div>
-        <div class="detail-row"><div class="detail-label">Issued At</div><div class="detail-value">${data.issued_at ? new Date(data.issued_at).toLocaleString() : data.issued_at}</div></div>
+        ${data.chain_audit && data.chain_audit.checked === false && data.chain_audit.note ? `
+          <div class="alert alert-info"><span>ℹ️</span><span>${escapeHtml(data.chain_audit.note)}</span></div>` : ''}
+        ${data.chain_audit && data.chain_audit.checked ? `
+          <div class="alert ${data.chain_audit.consistent ? 'alert-success' : 'alert-danger'}">
+            <span>${data.chain_audit.consistent ? '✓' : '⚠️'}</span>
+            <span><strong>On-chain cross-check:</strong> ${
+              data.chain_audit.consistent
+                ? 'Database matches the certificate registry on Sepolia.'
+                : escapeHtml(data.chain_audit.error || 'Mismatch — investigate before trusting this record.')
+            }</span>
+          </div>` : ''}
+        ${isRevoked ? `<div class="alert alert-warning"><span>⚠️</span><span><strong>Reason:</strong> ${escapeHtml(data.revoke_reason||'Not specified')}</span></div>` : ''}
+        <div class="detail-row"><div class="detail-label">Certificate ID</div><div class="detail-value"><code>${escapeHtml(data.certificate_id)}</code></div></div>
+        <div class="detail-row"><div class="detail-label">Student Name</div><div class="detail-value">${escapeHtml(data.student_name)}</div></div>
+        <div class="detail-row"><div class="detail-label">Matric Number</div><div class="detail-value">${escapeHtml(data.matric_number)}</div></div>
+        <div class="detail-row"><div class="detail-label">Department</div><div class="detail-value">${escapeHtml(data.department)}</div></div>
+        <div class="detail-row"><div class="detail-label">Faculty</div><div class="detail-value">${escapeHtml(data.faculty||'—')}</div></div>
+        <div class="detail-row"><div class="detail-label">Degree Class</div><div class="detail-value"><strong>${escapeHtml(data.degree_class)}</strong></div></div>
+        <div class="detail-row"><div class="detail-label">Graduation Year</div><div class="detail-value">${escapeHtml(data.graduation_year)}</div></div>
+        <div class="detail-row"><div class="detail-label">Issued At</div><div class="detail-value">${data.issued_at ? new Date(data.issued_at).toLocaleString() : escapeHtml(data.issued_at)}</div></div>
         <div class="chain-section">
           <h4>⛓️ Blockchain Proof</h4>
-          <div class="chain-row"><div class="chain-dot"></div><div class="chain-text">SHA-256: ${data.sha256_hash}</div></div>
-          ${data.ipfs_cid ? `<div class="chain-row"><div class="chain-dot"></div><div class="chain-text">IPFS: <a href="https://ipfs.io/ipfs/${data.ipfs_cid}" target="_blank" style="color:#a78bfa;">${data.ipfs_cid}</a></div></div>` : ''}
-          ${data.blockchain_tx ? `<div class="chain-row"><div class="chain-dot"></div><div class="chain-text">TX: <a href="https://sepolia.etherscan.io/tx/${data.blockchain_tx}" target="_blank" style="color:#a78bfa;">${data.blockchain_tx}</a></div></div>` : ''}
-          ${data.source ? `<p style="color:#6b7280;font-size:.76rem;margin-top:8px;">${data.source}</p>` : ''}
+          <div class="chain-row"><div class="chain-dot"></div><div class="chain-text">SHA-256: ${escapeHtml(data.sha256_hash)}</div></div>
+          ${data.ipfs_cid ? `<div class="chain-row"><div class="chain-dot"></div><div class="chain-text">IPFS: <a href="https://ipfs.io/ipfs/${encodeURIComponent(data.ipfs_cid)}" target="_blank" rel="noopener noreferrer" style="color:#a78bfa;">${escapeHtml(data.ipfs_cid)}</a></div></div>` : ''}
+          ${data.blockchain_tx ? `<div class="chain-row"><div class="chain-dot"></div><div class="chain-text">TX: <a href="https://sepolia.etherscan.io/tx/${encodeURIComponent(data.blockchain_tx)}" target="_blank" rel="noopener noreferrer" style="color:#a78bfa;">${escapeHtml(data.blockchain_tx)}</a></div></div>` : ''}
+          ${data.source ? `<p style="color:#6b7280;font-size:.76rem;margin-top:8px;">${escapeHtml(data.source)}</p>` : ''}
         </div>
       </div>
     </div>`;
@@ -1211,13 +1341,16 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Auto-reconnect MetaMask
+// Auto-reconnect MetaMask + load contract address from server
 if (window.ethereum) {
-  window.ethereum.request({ method: 'eth_accounts' }).then(accs => {
-    if (accs.length) {
+  loadPublicConfig().then(() => {
+    return window.ethereum.request({ method: 'eth_accounts' });
+  }).then(accs => {
+    if (accs && accs.length) {
       web3          = new Web3(window.ethereum);
       walletAccount = accs[0];
-      contract      = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+      const ca      = contractAddr();
+      if (ca) contract = new web3.eth.Contract(CONTRACT_ABI, ca);
       document.getElementById('wallet-badge').style.display = 'flex';
       document.getElementById('wallet-addr').textContent    = walletAccount.slice(0,6) + '...' + walletAccount.slice(-4);
       document.getElementById('connect-wallet-btn').style.display = 'none';
@@ -1225,8 +1358,24 @@ if (window.ethereum) {
   }).catch(()=>{});
 }
 
-// Resume session on page refresh
-if (sessionStorage.getItem('admin_name')) initApp();
+if (sessionStorage.getItem('admin_name')) {
+  initApp().catch(e => console.error(e));
+}
+
+/* Deep link: index.html?verify=LMU-2026-00001 (QR / public share) */
+window.addEventListener('load', () => {
+  const v = new URLSearchParams(location.search).get('verify');
+  if (!v) return;
+  const loginPage = document.getElementById('page-login');
+  const appShell  = document.getElementById('app-shell');
+  loginPage.classList.remove('active');
+  loginPage.style.display = 'none';
+  appShell.style.display  = 'block';
+  showPage('verify');
+  document.getElementById('v-cert-id').value = v;
+  switchVTab('vid');
+  setTimeout(() => verifyById(), 400);
+});
 </script>
 </body>
 </html>

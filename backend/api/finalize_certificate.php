@@ -4,13 +4,14 @@
 // ============================================================
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+require_once __DIR__ . '/../includes/cors.php';
+cors_handle_options_preflight('POST, OPTIONS');
+cors_apply_credentials_if_allowed();
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
-
 require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/eth_rpc.php';
 
 requireLogin();
 
@@ -29,6 +30,17 @@ if (empty($certId) || empty($txHash)) {
     exit;
 }
 
+if (!isContractConfigured()) {
+    http_response_code(400);
+    echo json_encode([
+        'success' => false,
+        'message' => 'Smart contract is not configured. Set CONTRACT_ADDRESS (or settings.contract_address) before finalizing on-chain.',
+    ]);
+    exit;
+}
+
+$contractAddr = contractAddress();
+
 $db   = getDB();
 $stmt = $db->prepare("
     SELECT id FROM certificates
@@ -42,13 +54,20 @@ if (!$stmt->fetch()) {
     exit;
 }
 
+try {
+    assertSuccessfulContractTx($txHash, $contractAddr);
+} catch (Throwable $e) {
+    echo json_encode(['success' => false, 'message' => $e->getMessage()]);
+    exit;
+}
+
 $db->prepare("
     UPDATE certificates
     SET blockchain_tx_hash = ?,
         blockchain_address = ?,
         status = 'issued'
     WHERE certificate_id = ?
-")->execute([$txHash, CONTRACT_ADDRESS, $certId]);
+")->execute([$txHash, $contractAddr, $certId]);
 
 echo json_encode([
     'success'  => true,
