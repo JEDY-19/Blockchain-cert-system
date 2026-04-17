@@ -45,6 +45,8 @@ p{color:var(--gray-600);}
 .sidebar-link:hover{background:var(--gray-100);color:var(--primary);}
 .sidebar-link.active{background:var(--info-bg);color:var(--info);font-weight:600;}
 .main-content{flex:1;padding:32px;}
+#app-shell.employer-verify-only .sidebar{display:none!important;}
+#app-shell.employer-verify-only .main-content{max-width:920px;margin:0 auto;}
 
 /* CARDS */
 .card{background:var(--white);border:1px solid var(--gray-200);border-radius:var(--r-lg);padding:24px;box-shadow:var(--shadow-sm);}
@@ -263,7 +265,7 @@ tbody tr:hover{background:var(--gray-50);}
 
     <p style="text-align:center;margin-top:12px;font-size:.82rem;color:var(--gray-400);">
       Employer?
-      <span style="color:var(--primary);cursor:pointer;font-weight:500;" onclick="showPage('verify')">
+      <span style="color:var(--primary);cursor:pointer;font-weight:500;" onclick="openEmployerVerify()">
         Verify a Certificate →
       </span>
     </p>
@@ -276,7 +278,7 @@ tbody tr:hover{background:var(--gray-50);}
 <div id="app-shell" style="display:none;">
 
   <nav class="navbar">
-    <div class="navbar-brand" onclick="showPage('dashboard')">
+    <div class="navbar-brand" id="navbar-brand-btn" onclick="showPage('dashboard')">
       <div class="logo-icon">🎓</div>
       <div>
         <div style="font-size:.72rem;opacity:.7;font-weight:400;">Landmark University</div>
@@ -291,7 +293,8 @@ tbody tr:hover{background:var(--gray-50);}
       <button class="btn btn-accent btn-sm" id="connect-wallet-btn" onclick="connectWallet()">
         🦊 Connect MetaMask
       </button>
-      <button class="btn btn-ghost btn-sm" onclick="handleLogout()">Sign Out</button>
+      <button class="btn btn-ghost btn-sm" id="btn-back-to-login" style="display:none;" type="button" onclick="exitEmployerVerifyToLogin()">← Admin login</button>
+      <button class="btn btn-ghost btn-sm" id="btn-navbar-signout" type="button" onclick="handleLogout()">Sign Out</button>
     </div>
   </nav>
 
@@ -664,6 +667,8 @@ let walletAccount = null;
 let pendingCert   = null;
 let allCertsData  = [];
 let revokeTarget  = null;
+/** True when opened from login “Employer verify” or ?verify= — no admin session/UI */
+let employerPublicVerifyMode = false;
 
 /* ── NAVIGATION ──────────────────────────────────────────────── */
 function resetLoginButtonState() {
@@ -674,16 +679,72 @@ function resetLoginButtonState() {
   }
 }
 
+function applyEmployerVerifyShellLayout() {
+  const shell = document.getElementById('app-shell');
+  if (shell) {
+    shell.classList.toggle('employer-verify-only', employerPublicVerifyMode);
+  }
+  const brand = document.getElementById('navbar-brand-btn');
+  if (brand) {
+    brand.onclick = employerPublicVerifyMode ? exitEmployerVerifyToLogin : () => showPage('dashboard');
+  }
+  const back = document.getElementById('btn-back-to-login');
+  const out  = document.getElementById('btn-navbar-signout');
+  if (back) back.style.display = employerPublicVerifyMode ? 'inline-flex' : 'none';
+  if (out)  out.style.display  = employerPublicVerifyMode ? 'none' : 'inline-flex';
+}
+
+function exitEmployerVerifyToLogin() {
+  employerPublicVerifyMode = false;
+  applyEmployerVerifyShellLayout();
+  showPage('login');
+}
+
+/**
+ * Ends any admin PHP session, clears client admin keys, and opens verify-only UI (employers / public).
+ */
+async function enterPublicVerifyFlow(prefillCertId) {
+  try {
+    await fetch(API_BASE + '/logout.php', { method: 'POST', credentials: 'same-origin' });
+  } catch (e) { /* ignore */ }
+  sessionStorage.clear();
+  employerPublicVerifyMode = true;
+  applyEmployerVerifyShellLayout();
+
+  const loginPage = document.getElementById('page-login');
+  const appShell  = document.getElementById('app-shell');
+  loginPage.classList.remove('active');
+  loginPage.style.display = 'none';
+  appShell.style.display  = 'block';
+
+  showPage('verify');
+  if (prefillCertId) {
+    document.getElementById('v-cert-id').value = prefillCertId;
+    switchVTab('vid');
+    setTimeout(() => verifyById(), 400);
+  }
+}
+
+async function openEmployerVerify() {
+  await enterPublicVerifyFlow(null);
+}
+
 function showPage(name) {
   const loginPage = document.getElementById('page-login');
   const appShell  = document.getElementById('app-shell');
 
   if (name === 'login') {
+    employerPublicVerifyMode = false;
+    applyEmployerVerifyShellLayout();
     loginPage.classList.add('active');
     loginPage.style.display = '';   // let CSS handle it
     appShell.style.display  = 'none';
     resetLoginButtonState();
     return;
+  }
+
+  if (employerPublicVerifyMode && name !== 'verify') {
+    name = 'verify';
   }
 
   // Hide login completely
@@ -786,6 +847,8 @@ async function handleLogout() {
   try {
     await fetch(API_BASE + '/logout.php', { method: 'POST', credentials: 'same-origin' });
   } catch (e) { /* ignore */ }
+  employerPublicVerifyMode = false;
+  applyEmployerVerifyShellLayout();
   sessionStorage.clear();
   showPage('login');
   // Show blue divider line and logout toast on the login card
@@ -818,6 +881,26 @@ function contractAddr() {
 }
 
 async function initApp() {
+  employerPublicVerifyMode = false;
+  applyEmployerVerifyShellLayout();
+
+  let sess = { logged_in: false };
+  try {
+    const s = await fetch(API_BASE + '/session.php', { credentials: 'same-origin' });
+    sess = await s.json();
+  } catch (e) {
+    console.warn('session', e);
+  }
+  if (!sess.logged_in) {
+    sessionStorage.removeItem('admin_name');
+    sessionStorage.removeItem('admin_role');
+    resetLoginButtonState();
+    showPage('login');
+    return;
+  }
+  sessionStorage.setItem('admin_name', sess.admin_name || 'Admin');
+  sessionStorage.setItem('admin_role', sess.admin_role || 'admin');
+
   await loadPublicConfig();
 
   document.getElementById('admin-name-display').textContent =
@@ -1371,24 +1454,12 @@ if (window.ethereum) {
   }).catch(()=>{});
 }
 
-if (sessionStorage.getItem('admin_name')) {
+const __urlVerifyPrefill = new URLSearchParams(location.search).get('verify');
+if (__urlVerifyPrefill) {
+  void enterPublicVerifyFlow(__urlVerifyPrefill);
+} else if (sessionStorage.getItem('admin_name')) {
   initApp().catch(e => console.error(e));
 }
-
-/* Deep link: index.html?verify=LMU-2026-00001 (QR / public share) */
-window.addEventListener('load', () => {
-  const v = new URLSearchParams(location.search).get('verify');
-  if (!v) return;
-  const loginPage = document.getElementById('page-login');
-  const appShell  = document.getElementById('app-shell');
-  loginPage.classList.remove('active');
-  loginPage.style.display = 'none';
-  appShell.style.display  = 'block';
-  showPage('verify');
-  document.getElementById('v-cert-id').value = v;
-  switchVTab('vid');
-  setTimeout(() => verifyById(), 400);
-});
 </script>
 </body>
 </html>
