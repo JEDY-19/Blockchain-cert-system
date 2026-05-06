@@ -8,7 +8,10 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
 
 require_once __DIR__ . '/../config/db.php';
 require_once __DIR__ . '/../includes/chain_verify_bridge.php';
@@ -120,7 +123,7 @@ if (!empty($cert['blockchain_tx_hash']) && isContractConfigured()) {
 }
 
 $cid = $cert['ipfs_cid'] ?? '';
-$ipfsUrl = ($cid !== '' && $cid !== 'ipfs-unavailable') ? (IPFS_GATEWAY . $cid) : null;
+$ipfsUrl = ($cid !== '') ? (IPFS_GATEWAY . $cid) : null;
 
 $payload = [
     'success'         => true,

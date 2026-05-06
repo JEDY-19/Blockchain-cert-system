@@ -28,7 +28,8 @@ if (is_readable($__envFile)) {
     }
 }
 
-function getDB(): PDO {
+function getDB(): PDO
+{
     static $pdo = null;
     if ($pdo === null) {
         $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=' . DB_CHARSET;
@@ -41,7 +42,8 @@ function getDB(): PDO {
     return $pdo;
 }
 
-function getSetting(string $key, ?string $default = null): ?string {
+function getSetting(string $key, ?string $default = null): ?string
+{
     static $cache = [];
     if (array_key_exists($key, $cache)) {
         return $cache[$key];
@@ -61,7 +63,8 @@ function getSetting(string $key, ?string $default = null): ?string {
     return $cache[$key];
 }
 
-function appPublicUrl(): string {
+function appPublicUrl(): string
+{
     static $u = null;
     if ($u === null) {
         $fromEnv = getenv('APP_PUBLIC_URL');
@@ -76,22 +79,25 @@ function appPublicUrl(): string {
     return $u;
 }
 
-function contractAddress(): string {
+function contractAddress(): string
+{
     static $a = null;
     if ($a === null) {
-        $fromEnv = getenv('0x98CB070d1E42E140E776E265d21bBF27353D4d49');
-        $a       = $fromEnv ?: getSetting('0x98CB070d1E42E140E776E265d21bBF27353D4d49', '');
+        $fromEnv = getenv('CONTRACT_ADDRESS');
+        $a       = $fromEnv ?: getSetting('contract_address', '');
         $a       = is_string($a) ? trim($a) : '';
     }
     return $a;
 }
 
-function isContractConfigured(): bool {
+function isContractConfigured(): bool
+{
     $a = contractAddress();
     return (bool) preg_match('/^0x[a-fA-F0-9]{40}$/', $a);
 }
 
-function sepoliaRpcUrl(): string {
+function sepoliaRpcUrl(): string
+{
     $fromEnv = getenv('SEPOLIA_RPC_URL');
     if ($fromEnv && is_string($fromEnv) && $fromEnv !== '') {
         return $fromEnv;

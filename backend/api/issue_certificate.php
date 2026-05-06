@@ -98,11 +98,20 @@ try {
 
     // Upload to IPFS
     $ipfsResult = ipfsUpload($filePath);
-    $ipfsCid    = $ipfsResult['success'] ? $ipfsResult['cid'] : 'ipfs-unavailable';
+    if (!empty($ipfsResult['success'])) {
+        $ipfsCid = $ipfsResult['cid'];
+        $ipfsAvailable = true;
+        $ipfsMessage = null;
+    } else {
+        $ipfsCid = '';
+        $ipfsAvailable = false;
+        $ipfsMessage = $ipfsResult['message'] ?? 'IPFS upload failed';
+    }
 
     $verifyUrl = appPublicUrl() . '/index.html?verify=' . $certId;
 
     // Save to database
+    
     $db->prepare("
         INSERT INTO certificates
             (certificate_id, student_id, issued_by, sha256_hash, ipfs_cid, qr_code_data, status)
@@ -117,6 +126,8 @@ try {
         'certificate_id'  => $certId,
         'sha256_hash'     => '0x' . $certHash,
         'ipfs_cid'        => $ipfsCid,
+        'ipfs_available'  => !empty($ipfsAvailable),
+        'ipfs_message'    => $ipfsMessage ?? null,
         'student_name'    => strtoupper(trim($input['full_name'])),
         'matric_number'   => $input['matric_number'],
         'department'      => $input['department'],
@@ -124,7 +135,6 @@ try {
         'graduation_year' => (int) $input['graduation_year'],
         'verify_url'      => $verifyUrl,
     ]);
-
 } catch (Exception $e) {
     $db->rollBack();
     echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
