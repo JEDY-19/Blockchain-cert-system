@@ -79,8 +79,8 @@ function appPublicUrl(): string {
 function contractAddress(): string {
     static $a = null;
     if ($a === null) {
-        $fromEnv = getenv('CONTRACT_ADDRESS');
-        $a       = $fromEnv ?: getSetting('contract_address', '');
+        $fromEnv = getenv('0x98CB070d1E42E140E776E265d21bBF27353D4d49');
+        $a       = $fromEnv ?: getSetting('0x98CB070d1E42E140E776E265d21bBF27353D4d49', '');
         $a       = is_string($a) ? trim($a) : '';
     }
     return $a;

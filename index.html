@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LMU Blockchain Certificate System</title>
-<script src="https://cdn.jsdelivr.net/npm/web3@4.3.0/dist/web3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/web3@1.10.0/dist/web3.min.js"></script>
 <style>
 :root {
   --primary:#1a1a6e; --primary-lt:#2d2d9b;
@@ -645,10 +645,10 @@ tbody tr:hover{background:var(--gray-50);}
 const API_BASE = 'backend/api';
 
 let publicConfig = {
-  contract_address: '',
-  contract_configured: false,
-  sepolia_rpc_url: 'https://ethereum-sepolia-rpc.publicnode.com',
-  app_public_url: '',
+    contract_address: '0x98CB070d1E42E140E776E265d21bBF27353D4d49',
+    contract_configured: true,
+    sepolia_rpc_url: 'https://ethereum-sepolia-rpc.publicnode.com',
+    app_public_url: 'http://localhost/Project/',
 };
 
 const CONTRACT_ABI = [
@@ -877,7 +877,7 @@ async function loadPublicConfig() {
 }
 
 function contractAddr() {
-  return publicConfig.contract_address || '';
+  return publicConfig.contract_address // '';
 }
 
 async function initApp() {
